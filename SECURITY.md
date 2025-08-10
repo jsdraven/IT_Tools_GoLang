@@ -20,10 +20,10 @@ go test ./...
 govulncheck ./...
 ```
 
+# Never commit secrets or private keys.
+
 ## Coordinated disclosure timeline (guideline)
 1. Acknowledge receipt (≤ 5 business days).
 2. Investigate and reproduce (target ≤ 10 business days).
 3. Fix + prepare release notes.
 4. Credit reporter (if desired) and disclose once a patched release is available, or after a mutually agreed window.
-
-# Never commit secrets or private keys.
