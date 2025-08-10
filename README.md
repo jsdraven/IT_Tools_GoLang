@@ -7,11 +7,43 @@
 ## Overview
 This project is designed to be self-hosted. Under **AGPL-3.0-or-later**, if you modify and run it as a network service, you must make the source code of your modified version available to users of that service. For organizations that cannot comply with AGPL terms, a separate commercial license is available from the maintainer.
 
+## Table of Contents
+- [Overview](#overview)
+- [Quick start](#quick-start)
+- [Requirements](#requirements)
+- [Security notes](#security-notes)
+- [Development](#development)
+- [License](#license)
+- [Accreditation](#accreditation)
+
+
 ## Quick start
 ```bash
 go run .
 # visit http://localhost:8080
 ```
+
+## Development
+**Status:** pre-alpha scaffolding.  
+Local loop:
+```bash
+go fmt ./...
+go vet ./...
+staticcheck ./...
+go test ./...
+govulncheck ./...
+```
+Tip (Windows/VS Code): set Format on Save and organize imports; prefer `gofumpt`.
+
+## Licensing details (AGPL network use)
+Under **AGPL-3.0-or-later**, if you deploy a **modified** version as a **network service**, you must make that modified source available to the service’s users. Commercial licensing is available if you cannot comply with AGPL obligations.
+
+## SPDX headers
+Add SPDX to Go files:
+```go
+// SPDX-License-Identifier: AGPL-3.0-or-later
+```
+
 ## Requirements
 Go 1.24+
 
