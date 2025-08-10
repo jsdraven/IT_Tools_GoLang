@@ -4,7 +4,7 @@
 The `main` branch is supported.
 
 ## Reporting a vulnerability
-Please email **jjustin@gmail.com** with:
+Please email **[jjustin@gmail.com](mailto:jjustin@gmail.com)** with:
 - A clear description of the issue and impact
 - Steps to reproduce or proof-of-concept
 - Affected versions/commit hash and environment details
