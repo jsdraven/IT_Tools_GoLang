@@ -7,7 +7,7 @@ Thanks for your interest in improving IT_Tools_GoLang!
 2. Keep PRs focused; describe the motivation and behavior changes.
 3. Ensure code builds and tests run locally:
    ```bash
-      go fmt ./...
+   go fmt ./...
    go vet ./...
    staticcheck ./...
    go test ./...
@@ -18,6 +18,19 @@ Thanks for your interest in improving IT_Tools_GoLang!
 Signed-off-by: Your Name <you@example.com>
 ```
 5. Open a Pull Request targeting <mark> main </mark>.
+
+## Local development setup
+- Go 1.24+  
+- Recommended tools:
+  - `staticcheck` — `go install honnef.co/go/tools/cmd/staticcheck@latest`
+  - `gofumpt` — `go install mvdan.cc/gofumpt@latest` (or via VS Code Go extension)
+
+## DCO quickstart
+Every commit must include a sign-off line:
+```
++Signed-off-by: Your Name <you@example.com>
+```
+You can use `git commit -s` to add this automatically.
 
 ## Code style
 * Use gofmt/gofumpt and organize imports.
