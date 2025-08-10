@@ -30,3 +30,13 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+# Env/Secrets
+.env
+.env.*
+*.env
+
+# Temp
+tmp/
+
+# Vendor (if you choose to vendor later)
+vendor/
