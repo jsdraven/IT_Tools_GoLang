@@ -1,52 +1,47 @@
 # IT_Tools_GoLang
-> Self-hosted web app written in Go. Licensed AGPL-3.0 for community use; commercial licensing available for closed/proprietary deployments.
+
+[![CI](https://github.com/jsdraven/IT_Tools_GoLang/actions/workflows/ci.yml/badge.svg)](https://github.com/jsdraven/IT_Tools_GoLang/actions/workflows/ci.yml)
+
+> Self-hosted web app written in Go. Community license: **AGPL-3.0-or-later**. Commercial licensing available for closed/proprietary deployments.
 
 ## Overview
-This project is designed to be self-hosted. Under **AGPL-3.0**, if you modify and run it as a network service, you must make the source code of your modified version available to its users. Commercial licensing is available if you need to combine or deploy this project without AGPL obligations.
+This project is designed to be self-hosted. Under **AGPL-3.0-or-later**, if you modify and run it as a network service, you must make the source code of your modified version available to users of that service. For organizations that cannot comply with AGPL terms, a separate commercial license is available from the maintainer.
 
 ## Quick start
 ```bash
 go run .
-# then visit http://localhost:8080
+# visit http://localhost:8080
 ```
-
-Requirements
+## Requirements
 Go 1.24+
 
-Recommended: VS Code + Go extension (gopls, dlv, gofumpt, staticcheck)
+Recommended: VS Code + Go extension (<mark>gopls</mark>, <mark>dlv</mark>, <mark>gofumpt</mark>, <mark>staticcheck</mark>)
 
-Git with SSH key configured (e.g., host alias github.com-personal in ~/.ssh/config)
+Git with SSH configured
 
-Security notes
-Never commit secrets (API keys, SSH keys, tokens).
+## Security notes
+Do not commit secrets (API keys, SSH keys, tokens).
 
-Run govulncheck ./... before pushing; see Security Policy for details.
+Prefer owner-only permissions on private keys.
 
-Private keys should be owner-read only; avoid broad ACLs/permissions.
+Run <mark>govulncheck ./...</mark> before pushing to identify known vulnerabilities.
 
-Contributing
+## Contributing
 Contributions are welcome! By submitting a PR you agree to:
 
-License your contribution under AGPL-3.0 (see LICENSE), and
+License your contribution under AGPL-3.0-or-later (see <mark> [LICENSE](LICENSE.md) </mark>), and
 
-The simple Contributor License terms in CLA.md that allow the maintainer to offer dual-licensing.
+The terms in <mark> [CLA.md](CLA.md) </mark> granting the maintainer limited relicensing rights for dual-licensed distributions.
 
-Please also add a DCO sign-off to each commit:
-
-```git
+Please include a DCO sign-off line in every commit:
+```Git
 Signed-off-by: Your Name <you@example.com>
 ```
-See [CONTRIBUTING.md](contributing.md) for full details.
+See <mark> [CONTRIBUTING.md](CONTRIBUTING.md) </mark> for full details.
 
-License
-Community: AGPL-3.0-only (see [LICENSE](SECURITY.md))
+## License
+*    Community: AGPL-3.0-or-later (see <mark> [LICENSE](LICENSE.md) </mark>)
+*    Commercial: contact [jjustin@gmail.com](mailto:jjustin@gmail.com)
 
-Commercial: Contact the maintainer at jjustin@gmail.com to discuss a commercial license if you cannot comply with the AGPL (e.g., you want to keep changes private).
-
-Accreditation
-This project benefited from assistance by ChatGPT (GPT-5 Thinking) from OpenAI for architecture notes, documentation drafting, and code review suggestions. All final decisions and code are authored and reviewed by the maintainer. AI-generated suggestions may contain errors; please open issues for corrections.
-
-Acknowledgments
-Go Team for the Go toolchain and VS Code extension.
-
-
+## Accreditation
+This project benefited from assistance by ChatGPT (GPT-5 Thinking) from OpenAI for architecture discussion, documentation drafting, and code review suggestions. All final decisions and code are authored and reviewed by the maintainer. If you spot issues, please open an Issue or PR.
