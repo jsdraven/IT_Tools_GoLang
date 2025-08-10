@@ -19,19 +19,6 @@ Signed-off-by: Your Name <you@example.com>
 ```
 5. Open a Pull Request targeting <mark> main </mark>.
 
-## Local development setup
-- Go 1.24+  
-- Recommended tools:
-  - `staticcheck` — `go install honnef.co/go/tools/cmd/staticcheck@latest`
-  - `gofumpt` — `go install mvdan.cc/gofumpt@latest` (or via VS Code Go extension)
-
-## DCO quickstart
-Every commit must include a sign-off line:
-```
-+Signed-off-by: Your Name <you@example.com>
-```
-You can use `git commit -s` to add this automatically.
-
 ## Code style
 * Use gofmt/gofumpt and organize imports.
 * Prefer small, composable functions.
@@ -45,3 +32,16 @@ By submitting a contribution, you agree that:
 
 ## Security
 Please follow the guidance in <mark> [SECURITY.md](SECURITY.md) </mark>. Do not include secrets in PRs.
+
+## Local development setup
+- Go 1.24+  
+- Recommended tools:
+  - `staticcheck` — `go install honnef.co/go/tools/cmd/staticcheck@latest`
+  - `gofumpt` — `go install mvdan.cc/gofumpt@latest` (or via VS Code Go extension)
+
+## DCO quickstart
+Every commit must include a sign-off line:
+```
++Signed-off-by: Your Name <you@example.com>
+```
+You can use `git commit -s` to add this automatically.
