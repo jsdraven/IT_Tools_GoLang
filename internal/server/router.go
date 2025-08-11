@@ -37,7 +37,7 @@ func NewRouter(cfg *config.Config, logger *slog.Logger) http.Handler {
 
 	// Root
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "IT_Tools_Go_Lang is running")
+		fmt.Fprintln(w, "IT_Tools_GoLang is running")
 	})
 
 	return r
