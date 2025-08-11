@@ -10,6 +10,7 @@
 - [Requirements](#requirements)
 - [Security notes](#security-notes)
 - [Development](#development)
+- [go-task](#development-with-go-task)
 - [Contributing](#contributing)
 - [License](#license)
 - [Accreditation](#accreditation)
@@ -47,6 +48,27 @@ go test ./...
 govulncheck ./...
 ```
 Tip (Windows/VS Code): set Format on Save and organize imports; prefer `gofumpt`.
+
+## Development with go-task
+
+### Install tools once:
+```bash
+go install github.com/go-task/task/v3/cmd/task@latest
+go install github.com/cosmtrek/air@latest
+go install mvdan.cc/gofumpt@latest
+go install honnef.co/go/tools/cmd/staticcheck@latest
+go install golang.org/x/vuln/cmd/govulncheck@latest
+```
+### Useful commands:
+```bash
+task dev     # hot reload with Air
+task fmt     # format with gofumpt
+task lint    # staticcheck
+task test    # run tests
+task vuln    # govulncheck
+task build   # build
+task clean   # clean caches
+```
 
 ## Licensing details (AGPL network use)
 Under **AGPL-3.0-or-later**, if you deploy a **modified** version as a **network service**, you must make that modified source available to the service’s users. Commercial licensing is available if you cannot comply with AGPL obligations.

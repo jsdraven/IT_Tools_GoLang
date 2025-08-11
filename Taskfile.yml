@@ -1,0 +1,70 @@
+version: '3'
+
+vars:
+  APP_NAME: IT_Tools_GoLang
+
+tasks:
+  default:
+    desc: Format, lint, test
+    cmds:
+      - task: fmt
+      - task: lint
+      - task: test
+
+  tools:
+    desc: Install/upgrade dev tools (gofumpt, staticcheck, govulncheck, air)
+    cmds:
+      - go install mvdan.cc/gofumpt@latest
+      - go install honnef.co/go/tools/cmd/staticcheck@latest
+      - go install golang.org/x/vuln/cmd/govulncheck@latest
+      - go install github.com/air-verse/air@latest
+
+  run:
+    desc: Run the app once
+    cmds:
+      - go run .
+
+  dev:
+    desc: Hot reload dev server (uses Air)
+    cmds:
+      - air
+
+  fmt:
+    desc: Format code with gofumpt
+    cmds:
+      - gofumpt -l -w .
+
+  lint:
+    desc: Static analysis
+    cmds:
+      - staticcheck ./...
+
+  test:
+    desc: Run tests verbosely
+    cmds:
+      - go test -v ./...
+
+  vuln:
+    desc: Check for known vulnerabilities
+    cmds:
+      - govulncheck ./...
+
+  tidy:
+    desc: Tidy modules
+    cmds:
+      - go mod tidy
+
+  build:
+    desc: Build the application
+    cmds:
+      - go build ./...
+
+  clean:
+    desc: Clean build/test caches
+    cmds:
+      - go clean -cache -testcache
+
+  release:
+    desc: Build an optimized release binary
+    cmds:
+      - go build -trimpath -ldflags="-s -w" ./...

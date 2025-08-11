@@ -38,14 +38,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      - name: Build
-        run: go build ./...
+      - name: Install go-task
+        run: go install github.com/go-task/task/v3/cmd/task@latest
+
+      - name: Tooling (optional)
+        run: task tools
+
+      - name: Format check
+        run: task fmt
+
+      - name: Lint
+        run: task lint
 
       - name: Test
-        run: go test -v ./...
+        run: task test
 
-      - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
-
-      - name: Run govulncheck
-        run: govulncheck ./...
+      - name: Vulnerability check
+        run: task vuln
