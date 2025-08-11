@@ -26,7 +26,7 @@ go run .
 
 ## Requirements
 * Go 1.24+
-* Recommended: VS Code + Go extension (<mark>gopls</mark>, <mark>dlv</mark>, <mark>gofumpt</mark>, <mark>staticcheck</mark>)
+* Recommended: VS Code + Go extension (`gopls`, `dlv`, `gofumpt`, `staticcheck`)
 * Git with SSH configured
 
 ## Security notes
@@ -34,7 +34,7 @@ Do not commit secrets (API keys, SSH keys, tokens).
 
 Prefer owner-only permissions on private keys.
 
-Run <mark>govulncheck ./...</mark> before pushing to identify known vulnerabilities.
+Run `govulncheck ./...` before pushing to identify known vulnerabilities.
 
 ## Development
 **Status:** pre-alpha scaffolding.  
@@ -60,18 +60,18 @@ Add SPDX to Go files:
 ## Contributing
 Contributions are welcome! By submitting a PR you agree to:
 
-License your contribution under AGPL-3.0-or-later (see <mark> [LICENSE](LICENSE.md) </mark>), and
+License your contribution under AGPL-3.0-or-later (see `[LICENSE](LICENSE.md)`), and
 
-The terms in <mark> [CLA.md](CLA.md) </mark> granting the maintainer limited relicensing rights for dual-licensed distributions.
+The terms in `[CLA.md](CLA.md)` granting the maintainer limited relicensing rights for dual-licensed distributions.
 
 Please include a DCO sign-off line in every commit:
 ```Git
 Signed-off-by: Your Name <you@example.com>
 ```
-See <mark> [CONTRIBUTING.md](CONTRIBUTING.md) </mark> for full details.
+See `[CONTRIBUTING.md](CONTRIBUTING.md)` for full details.
 
 ## License
-*    Community: AGPL-3.0-or-later (see <mark> [LICENSE](LICENSE.md) </mark>)
+*    Community: AGPL-3.0-or-later (see `[LICENSE](LICENSE.md)`)
 *    Commercial: contact [jjustin@gmail.com](mailto:jjustin@gmail.com)
 
 ## Accreditation
