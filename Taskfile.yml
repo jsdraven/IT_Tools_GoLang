@@ -22,7 +22,7 @@ tasks:
   run:
     desc: Run the app once
     cmds:
-      - go run .
+      - go run ./cmd/server
 
   dev:
     desc: Hot reload dev server (uses Air)
@@ -40,9 +40,19 @@ tasks:
       - staticcheck ./...
 
   test:
-    desc: Run tests verbosely
+    desc: Run tests verbosely with coverage report
     cmds:
-      - go test -v ./...
+      - go test -v -coverprofile=coverage.out ./...
+
+  cover:
+    desc: Show total coverage in console
+    cmds:
+      - go tool cover -func=coverage.out | tail -n 1
+
+  cover-html:
+    desc: Open HTML coverage (creates coverage.html)
+    cmds:
+      - go tool cover -html=coverage.out -o coverage.html
 
   vuln:
     desc: Check for known vulnerabilities
@@ -57,7 +67,7 @@ tasks:
   build:
     desc: Build the application
     cmds:
-      - go build ./...
+      - go build -o bin/server ./cmd/server
 
   clean:
     desc: Clean build/test caches
@@ -67,4 +77,12 @@ tasks:
   release:
     desc: Build an optimized release binary
     cmds:
-      - go build -trimpath -ldflags="-s -w" ./...
+      - go build -trimpath -ldflags="-s -w" -o bin/server ./cmd/server
+
+  precommit:
+    desc: Run checks before committing
+    cmds:
+      - task: fmt
+      - task: lint
+      - task: test
+      - task: vuln

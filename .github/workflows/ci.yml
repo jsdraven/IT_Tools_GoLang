@@ -50,8 +50,14 @@ jobs:
       - name: Lint
         run: task lint
 
-      - name: Test
-        run: task test
+      - name: Test (with coverage)
+        run: go test -v -coverprofile=coverage.out ./...
+
+      - name: Coverage gate (>= 80%)
+        run: |
+          total=$(go tool cover -func=coverage.out | grep '^total:' | awk '{print substr($3, 1, length($3)-1)}')
+          echo "Total coverage: ${total}%" >> $GITHUB_STEP_SUMMARY
+          awk -v p="$total" 'BEGIN { if (p+0 < 80) { printf "Coverage %.2f%% is below 80%%\n", p; exit 1 } }'
 
       - name: Vulnerability check
         run: task vuln

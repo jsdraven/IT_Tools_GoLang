@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "[pre-commit] preparing environment..."
+
+# Ensure Go is on PATH (handles Git Bash on Windows)
+if ! command -v go >/dev/null 2>&1; then
+  # Common Windows MSI install paths
+  if [ -d "/c/Program Files/Go/bin" ]; then
+    export PATH="$PATH:/c/Program Files/Go/bin"
+  elif [ -d "/c/Go/bin" ]; then
+    export PATH="$PATH:/c/Go/bin"
+  fi
+fi
+
+if ! command -v go >/dev/null 2>&1; then
+  echo "[pre-commit] ERROR: 'go' not found on PATH. Install Go and/or restart your terminal."
+  exit 1
+fi
+
+# Add GOPATH/bin to PATH so go-installed tools are found
+GOPATH_DIR="$(go env GOPATH 2>/dev/null || true)"
+if [ -n "${GOPATH_DIR}" ]; then
+  if command -v cygpath >/dev/null 2>&1; then
+    GOPATH_DIR="$(cygpath -u "$GOPATH_DIR" 2>/dev/null || echo "$GOPATH_DIR")"
+  fi
+  export PATH="$PATH:${GOPATH_DIR}/bin"
+fi
+
+missing=0
+need_tool() {
+  local bin="$1" install_hint="$2"
+  if ! command -v "$bin" >/dev/null 2>&1; then
+    echo "[pre-commit] MISSING: $bin"
+    echo "  install with: $install_hint"
+    missing=1
+  fi
+}
+
+need_tool gofumpt     "go install mvdan.cc/gofumpt@latest"
+need_tool staticcheck "go install honnef.co/go/tools/cmd/staticcheck@latest"
+need_tool govulncheck "go install golang.org/x/vuln/cmd/govulncheck@latest"
+
+if [ "$missing" -ne 0 ]; then
+  echo "[pre-commit] Abort: install the missing tool(s) above, then retry the commit."
+  exit 1
+fi
+
+echo "[pre-commit] formatting, linting, testing, vuln scan..."
+gofumpt -l -w .
+staticcheck ./...
+go test ./...
+govulncheck ./...
+echo "[pre-commit] OK"

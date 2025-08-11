@@ -1,9 +1,9 @@
-# Basic Air config for hot reload
-cmd = "go run ."
-bin = "tmp/main.exe"
+# Air config for hot reload
+cmd = "go run ./cmd/server"
+bin = "tmp/server"
 stop_on_error = true
 include_ext = ["go", "mod", "sum"]
-exclude_dir = ["tmp", "bin", "vendor", ".git"]
+exclude_dir = ["tmp", "bin", "vendor", ".git", ".github"]
 
 [log]
 time = true
