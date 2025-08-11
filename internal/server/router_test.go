@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
 )
 
 func discardLogger() *slog.Logger {
@@ -17,7 +19,8 @@ func discardLogger() *slog.Logger {
 }
 
 func TestHealthz(t *testing.T) {
-	h := NewRouter(discardLogger())
+	cfg := config.Load()
+	h := NewRouter(cfg, discardLogger())
 
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	rr := httptest.NewRecorder()
@@ -32,7 +35,8 @@ func TestHealthz(t *testing.T) {
 }
 
 func TestRoot(t *testing.T) {
-	h := NewRouter(discardLogger())
+	cfg := config.Load()
+	h := NewRouter(cfg, discardLogger())
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rr := httptest.NewRecorder()
@@ -47,7 +51,8 @@ func TestRoot(t *testing.T) {
 }
 
 func TestNotFound(t *testing.T) {
-	h := NewRouter(discardLogger())
+	cfg := config.Load()
+	h := NewRouter(cfg, discardLogger())
 
 	req := httptest.NewRequest(http.MethodGet, "/nope", nil)
 	rr := httptest.NewRecorder()

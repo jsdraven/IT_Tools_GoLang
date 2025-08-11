@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"log/slog"
 	"net"
 	"net/http"
@@ -32,7 +33,7 @@ func bindListener(addr string, logger *slog.Logger) (net.Listener, error) {
 // serveOnListener runs the HTTP server until ctx is cancelled.
 func serveOnListener(ctx context.Context, ln net.Listener, cfg *config.Config, logger *slog.Logger) error {
 	srv := &http.Server{
-		Handler:           server.NewRouter(logger),
+		Handler:           server.NewRouter(cfg, logger), // <-- important: pass cfg, logger
 		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 		ReadTimeout:       cfg.ReadTimeout,
 		WriteTimeout:      cfg.WriteTimeout,
@@ -42,6 +43,15 @@ func serveOnListener(ctx context.Context, ln net.Listener, cfg *config.Config, l
 	logger.Info("server_listening", "addr", ln.Addr().String())
 
 	go func() {
+		// Wrap listener with TLS if cert/key provided
+		if cfg.TLSCertFile != "" && cfg.TLSKeyFile != "" {
+			tlsCfg := &tls.Config{MinVersion: cfg.TLSMinVersion}
+			ln = tls.NewListener(ln, tlsCfg)
+			if err := srv.ServeTLS(ln, cfg.TLSCertFile, cfg.TLSKeyFile); err != nil && err != http.ErrServerClosed {
+				logger.Error("server_error", "err", err)
+			}
+			return
+		}
 		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			logger.Error("server_error", "err", err)
 		}

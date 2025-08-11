@@ -1,5 +1,4 @@
 // Package server constructs the HTTP router and middleware stack for the app.
-//
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package server
 
@@ -11,16 +10,24 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
 )
 
-func NewRouter(logger *slog.Logger) http.Handler {
+// NewRouter builds the chi router with security/cors/logging middleware.
+func NewRouter(cfg *config.Config, logger *slog.Logger) http.Handler {
 	r := chi.NewRouter()
 
 	// Robust defaults
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
-	r.Use(middleware.Timeout(60 * time.Second))
+	r.Use(RequireHTTPS(cfg))
+	r.Use(AllowedHosts(cfg))
+	r.Use(MaxBodyBytes(cfg))
+	r.Use(SecurityHeaders(cfg))
+	r.Use(CORS(cfg))
+
+	// Structured request logging
 	r.Use(Logging(logger))
 
 	// Health
@@ -30,14 +37,13 @@ func NewRouter(logger *slog.Logger) http.Handler {
 
 	// Root
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "IT_Tools_GoLang is running")
+		fmt.Fprintln(w, "IT_Tools_Go_Lang is running")
 	})
 
 	return r
 }
 
-// Logging is a small slog middleware for JSON request logs using chi's
-// WrapResponseWriter to capture status code and bytes written.
+// Logging is a slog middleware using chi's WrapResponseWriter to capture status.
 func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
