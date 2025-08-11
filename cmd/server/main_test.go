@@ -18,57 +18,46 @@ func discardLogger() *slog.Logger {
 	return slog.New(slog.NewJSONHandler(io.Discard, nil))
 }
 
-func TestStartServer_ServesHealthz(t *testing.T) {
-	t.Setenv("PORT", "0") // ask OS for an ephemeral port
-	t.Setenv("LOG_LEVEL", "ERROR")
-	cfg := config.Load()
-	logger := discardLogger()
-
-	srv := startServer(cfg, logger)
-
-	// Bind a listener ourselves so we can discover the chosen port.
-	ln, err := net.Listen("tcp", cfg.Addr)
+func TestServeOnListener_ServesHealthz(t *testing.T) {
+	// Configure ephemeral port via listener
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
 	defer ln.Close()
 
-	// Serve in the background.
-	srvErr := make(chan error, 1)
-	go func() {
-		srvErr <- srv.Serve(ln)
-	}()
+	// Minimal config with defaults (timeouts, etc.)
+	t.Setenv("PORT", "0") // not used when we pass ln explicitly
+	t.Setenv("LOG_LEVEL", "ERROR")
+	cfg := config.Load()
 
-	// Build base URL from the actual listener address.
-	url := "http://" + ln.Addr().String()
+	// Run server until context cancelled
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	// Give the server a brief moment to start accepting.
+	errCh := make(chan error, 1)
+	go func() { errCh <- serveOnListener(ctx, ln, cfg, discardLogger()) }()
+
+	// Give it a brief moment to start
 	time.Sleep(50 * time.Millisecond)
 
-	// Hit /healthz and expect 200 ok.
-	resp, err := http.Get(url + "/healthz")
+	// Hit /healthz and expect 200
+	url := "http://" + ln.Addr().String() + "/healthz"
+	resp, err := http.Get(url)
 	if err != nil {
 		t.Fatalf("GET /healthz: %v", err)
 	}
-	defer resp.Body.Close()
+	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 
-	// Shutdown cleanly.
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(ctx); err != nil {
-		t.Fatalf("shutdown: %v", err)
-	}
-
-	// Allow Serve to exit.
+	// Stop the server
+	cancel()
 	select {
-	case err := <-srvErr:
-		if err != http.ErrServerClosed && err != nil {
-			t.Fatalf("serve error: %v", err)
-		}
 	case <-time.After(1 * time.Second):
 		t.Fatal("server did not stop in time")
+	case <-errCh:
+		// ok (serveOnListener returns nil after graceful shutdown)
 	}
 }

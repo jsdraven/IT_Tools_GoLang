@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,49 +15,55 @@ import (
 	"github.com/jsdraven/IT_Tools_GoLang/internal/server"
 )
 
-// startServer builds the configured *http.Server. Kept separate for testability.
-func startServer(cfg *config.Config, logger *slog.Logger) *http.Server {
-	handler := server.NewRouter(logger)
-	return &http.Server{
-		Addr:              cfg.Addr,
-		Handler:           handler,
+// serveOnListener runs the HTTP server until ctx is cancelled.
+// It logs start/stop, applies secure timeouts, and shuts down gracefully.
+func serveOnListener(ctx context.Context, ln net.Listener, cfg *config.Config, logger *slog.Logger) error {
+	srv := &http.Server{
+		Handler:           server.NewRouter(logger),
 		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 		ReadTimeout:       cfg.ReadTimeout,
 		WriteTimeout:      cfg.WriteTimeout,
 		IdleTimeout:       cfg.IdleTimeout,
 	}
+
+	logger.Info("server_listening", "addr", ln.Addr().String())
+	go func() {
+		// Serve will return http.ErrServerClosed on graceful shutdown.
+		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+			logger.Error("server_error", "err", err)
+		}
+	}()
+
+	// Wait for cancellation, then shut down.
+	<-ctx.Done()
+	ctxShut, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = srv.Shutdown(ctxShut)
+	logger.Info("server_stopped")
+	return nil
 }
 
 func main() {
-	// Load configuration from env + defaults
+	// Load configuration and logger
 	cfg := config.Load()
-
-	// Structured JSON logger with level from config
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: cfg.LogLevel,
 	}))
 
-	srv := startServer(cfg, logger)
+	// Bind listener (supports ":8080" or "127.0.0.1:0" for ephemeral)
+	ln, err := net.Listen("tcp", cfg.Addr)
+	if err != nil {
+		logger.Error("listen_error", "err", err, "addr", cfg.Addr)
+		os.Exit(1)
+	}
+	defer ln.Close()
 
-	// Start server
-	go func() {
-		logger.Info("server_listening", "addr", cfg.Addr)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("server_error", "err", err)
-			os.Exit(1)
-		}
-	}()
-
-	// Graceful shutdown on Ctrl+C
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt)
-	<-stop
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Stop on Ctrl+C
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
-	if err := srv.Shutdown(ctx); err != nil {
-		logger.Error("graceful_shutdown_failed", "err", err)
-	} else {
-		logger.Info("server_stopped")
+
+	if err := serveOnListener(ctx, ln, cfg, logger); err != nil && err != http.ErrServerClosed {
+		logger.Error("fatal_server_error", "err", err)
+		os.Exit(1)
 	}
 }

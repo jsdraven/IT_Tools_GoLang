@@ -68,6 +68,7 @@ task test    # run tests
 task vuln    # govulncheck
 task build   # build
 task clean   # clean caches
+task cover   # Show total coverage in console
 ```
 
 ## Licensing details (AGPL network use)

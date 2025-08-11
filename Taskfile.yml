@@ -47,7 +47,10 @@ tasks:
   cover:
     desc: Show total coverage in console
     cmds:
-      - go tool cover -func=coverage.out | tail -n 1
+      - cmd: powershell -NoProfile -Command "go tool cover -func=coverage.out | Select-String '^total:'"
+        platforms: [windows]
+      - cmd: sh -c "go tool cover -func=coverage.out | grep '^total:'"
+        platforms: [linux, darwin]
 
   cover-html:
     desc: Open HTML coverage (creates coverage.html)
