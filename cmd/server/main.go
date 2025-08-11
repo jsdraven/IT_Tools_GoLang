@@ -1,6 +1,5 @@
+// Package main is the entrypoint for the IT_Tools_GoLang HTTP server.
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//
-// Package main is the entrypoint for the IT_Tools_GoLang HTTP Server
 package main
 
 import (
@@ -15,6 +14,19 @@ import (
 	"github.com/jsdraven/IT_Tools_GoLang/internal/server"
 )
 
+// startServer builds the configured *http.Server. Kept separate for testability.
+func startServer(cfg *config.Config, logger *slog.Logger) *http.Server {
+	handler := server.NewRouter(logger)
+	return &http.Server{
+		Addr:              cfg.Addr,
+		Handler:           handler,
+		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
+		ReadTimeout:       cfg.ReadTimeout,
+		WriteTimeout:      cfg.WriteTimeout,
+		IdleTimeout:       cfg.IdleTimeout,
+	}
+}
+
 func main() {
 	// Load configuration from env + defaults
 	cfg := config.Load()
@@ -24,16 +36,7 @@ func main() {
 		Level: cfg.LogLevel,
 	}))
 
-	// Build router and HTTP server with security-focused timeouts
-	handler := server.NewRouter(logger)
-	srv := &http.Server{
-		Addr:              cfg.Addr,
-		Handler:           handler,
-		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
-		ReadTimeout:       cfg.ReadTimeout,
-		WriteTimeout:      cfg.WriteTimeout,
-		IdleTimeout:       cfg.IdleTimeout,
-	}
+	srv := startServer(cfg, logger)
 
 	// Start server
 	go func() {
