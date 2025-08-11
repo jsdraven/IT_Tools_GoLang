@@ -42,14 +42,14 @@ tasks:
   test:
     desc: Run tests verbosely with coverage report
     cmds:
-      - go test -v -coverprofile=coverage.out ./...
+      - go test -v -coverprofile=coverage.out -tags=cover ./...
 
   cover:
     desc: Show total coverage in console
     cmds:
-      - cmd: powershell -NoProfile -Command "go tool cover -func=coverage.out | Select-String '^total:'"
+      - cmd: go tool cover -func=coverage.out
         platforms: [windows]
-      - cmd: sh -c "go tool cover -func=coverage.out | grep '^total:'"
+      - cmd: sh -c "go tool cover -func=coverage.out"
         platforms: [linux, darwin]
 
   cover-html:
