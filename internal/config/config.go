@@ -34,6 +34,16 @@ type Config struct {
 	CORSAllowCreds     bool     // allow credentials for CORS responses
 	CSPReportOnly      bool     // set CSP in Report-Only mode
 
+	// Rate-limit / ban
+	RateLimitRPS         int  // requests per second per IP
+	RateLimitBurst       int  // token bucket burst
+	BanThreshold         int  // 429 hits before ban
+	BanWindowSeconds     int  // window for counting 429 hits
+	BanDurationSeconds   int  // ban length
+	TrustProxy           bool // use X-Forwarded-For first hop
+	BanSilentDrop        bool // attempt to drop connection (no reply) when banned
+	AdminEndpointsEnable bool // expose read-only /admin/bans
+
 	// Request/host hardening
 	AllowedHosts []string // exact hostnames (comma-separated)
 	MaxBodyBytes int64    // e.g., 1048576 (1 MiB). 0 => unlimited
@@ -63,8 +73,19 @@ func Load() *Config {
 	corsAllowed := splitCSV(getenvDefault("CORS_ALLOWED_ORIGINS", "")) // empty => same-origin only
 	corsCreds := getenvBoolDefault("CORS_ALLOW_CREDENTIALS", false)    // default off
 	cspReportOnly := getenvBoolDefault("CSP_REPORT_ONLY", false)
+	// Rate-limit / ban defaults
+	rlRPS := getenvIntDefault("RATE_LIMIT_RPS", 5)
+	rlBurst := getenvIntDefault("RATE_LIMIT_BURST", 10)
+	banThresh := getenvIntDefault("BAN_THRESHOLD", 5)
+	banWindow := getenvIntDefault("BAN_WINDOW_SECONDS", 60)
+	banDuration := getenvIntDefault("BAN_DURATION_SECONDS", 900) // 15m
+	trustProxy := getenvBoolDefault("TRUST_PROXY", false)
+	banSilent := getenvBoolDefault("BAN_SILENT_DROP", false)
+	adminEnable := getenvBoolDefault("ADMIN_ENDPOINTS_ENABLE", false)
+	// Request/host hardening
 	allowedHosts := splitCSV(getenvDefault("ALLOWED_HOSTS", "")) // empty => any
 	maxBodyBytes := getenvIntDefault("MAX_BODY_BYTES", 0)
+	// TLS (self-termination)
 	tlsCert := getenvDefault("TLS_CERT_FILE", "")
 	tlsKey := getenvDefault("TLS_KEY_FILE", "")
 	tlsMin := strings.TrimSpace(strings.ToUpper(getenvDefault("TLS_MIN_VERSION", "TLS1.3")))
@@ -73,26 +94,34 @@ func Load() *Config {
 		tlsMinVer = tls.VersionTLS12
 	}
 	return &Config{
-		Addr:               addr,
-		LogLevel:           level,
-		ReadHeaderTimeout:  5 * time.Second,
-		ReadTimeout:        10 * time.Second,
-		WriteTimeout:       10 * time.Second,
-		IdleTimeout:        60 * time.Second,
-		Env:                env,
-		HTTPSRedirect:      httpsRedirect,
-		HSTSEnable:         hstsEnable,
-		HSTSMaxAgeSeconds:  hstsMaxAge,
-		HSTSIncludeSubDom:  hstsIncludeSub,
-		HSTSPreload:        hstsPreload,
-		CORSAllowedOrigins: corsAllowed,
-		CORSAllowCreds:     corsCreds,
-		CSPReportOnly:      cspReportOnly,
-		AllowedHosts:       allowedHosts,
-		MaxBodyBytes:       int64(maxBodyBytes),
-		TLSCertFile:        tlsCert,
-		TLSKeyFile:         tlsKey,
-		TLSMinVersion:      tlsMinVer,
+		Addr:                 addr,
+		LogLevel:             level,
+		ReadHeaderTimeout:    5 * time.Second,
+		ReadTimeout:          10 * time.Second,
+		WriteTimeout:         10 * time.Second,
+		IdleTimeout:          60 * time.Second,
+		Env:                  env,
+		HTTPSRedirect:        httpsRedirect,
+		HSTSEnable:           hstsEnable,
+		HSTSMaxAgeSeconds:    hstsMaxAge,
+		HSTSIncludeSubDom:    hstsIncludeSub,
+		HSTSPreload:          hstsPreload,
+		CORSAllowedOrigins:   corsAllowed,
+		CORSAllowCreds:       corsCreds,
+		CSPReportOnly:        cspReportOnly,
+		RateLimitRPS:         rlRPS,
+		RateLimitBurst:       rlBurst,
+		BanThreshold:         banThresh,
+		BanWindowSeconds:     banWindow,
+		BanDurationSeconds:   banDuration,
+		TrustProxy:           trustProxy,
+		BanSilentDrop:        banSilent,
+		AdminEndpointsEnable: adminEnable,
+		AllowedHosts:         allowedHosts,
+		MaxBodyBytes:         int64(maxBodyBytes),
+		TLSCertFile:          tlsCert,
+		TLSKeyFile:           tlsKey,
+		TLSMinVersion:        tlsMinVer,
 	}
 }
 

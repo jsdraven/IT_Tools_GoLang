@@ -21,6 +21,13 @@ func NewRouter(cfg *config.Config, logger *slog.Logger) http.Handler {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
+	r.Use(middleware.Timeout(60 * time.Second))
+
+	// Rate-limit + auto-ban
+	rb := NewRateBan(cfg, logger)
+	r.Use(rb.Middleware())
+
+	// Security & CORS
 	r.Use(RequireHTTPS(cfg))
 	r.Use(AllowedHosts(cfg))
 	r.Use(MaxBodyBytes(cfg))
@@ -39,6 +46,11 @@ func NewRouter(cfg *config.Config, logger *slog.Logger) http.Handler {
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "IT_Tools_GoLang is running")
 	})
+
+	// Read-only visibility into bans (optional)
+	if cfg.AdminEndpointsEnable {
+		r.Get("/admin/bans", rb.HandleListBans())
+	}
 
 	return r
 }
