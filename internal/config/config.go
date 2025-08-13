@@ -34,6 +34,14 @@ type Config struct {
 	CORSAllowCreds     bool     // allow credentials for CORS responses
 	CSPReportOnly      bool     // set CSP in Report-Only mode
 
+	// Logging hygiene
+	LogIncludeQuery   bool     // include ?query in request logs (default: false)
+	LogAllowedHeaders []string // explicit allowlist of headers to log (comma-separated env)
+	LogRedactHeaders  []string // headers whose values are redacted if present
+	LogHashIPs        bool     // hash/anonymize remote IP in logs
+	LogIPHashSalt     string   // optional salt used when hashing IPs
+	LogSkipPaths      []string // path prefixes to skip logging entirely (e.g., /healthz)
+
 	// Rate-limit / ban
 	RateLimitRPS         int  // requests per second per IP
 	RateLimitBurst       int  // token bucket burst
@@ -73,6 +81,15 @@ func Load() *Config {
 	corsAllowed := splitCSV(getenvDefault("CORS_ALLOWED_ORIGINS", "")) // empty => same-origin only
 	corsCreds := getenvBoolDefault("CORS_ALLOW_CREDENTIALS", false)    // default off
 	cspReportOnly := getenvBoolDefault("CSP_REPORT_ONLY", false)
+
+	// Logging hygiene
+	logIncludeQuery := getenvBoolDefault("LOG_INCLUDE_QUERY", false)
+	logAllowedHeaders := splitCSV(getenvDefault("LOG_ALLOWED_HEADERS", "")) // none by default
+	logRedactHeaders := splitCSV(getenvDefault("LOG_REDACT_HEADERS", "Authorization, Cookie"))
+	logHashIPs := getenvBoolDefault("LOG_HASH_IPS", false)
+	logIPHashSalt := getenvDefault("LOG_IP_HASH_SALT", "")
+	logSkipPaths := splitCSV(getenvDefault("LOG_SKIP_PATHS", "/healthz"))
+
 	// Rate-limit / ban defaults
 	rlRPS := getenvIntDefault("RATE_LIMIT_RPS", 5)
 	rlBurst := getenvIntDefault("RATE_LIMIT_BURST", 10)
@@ -82,9 +99,11 @@ func Load() *Config {
 	trustProxy := getenvBoolDefault("TRUST_PROXY", false)
 	banSilent := getenvBoolDefault("BAN_SILENT_DROP", false)
 	adminEnable := getenvBoolDefault("ADMIN_ENDPOINTS_ENABLE", false)
+
 	// Request/host hardening
 	allowedHosts := splitCSV(getenvDefault("ALLOWED_HOSTS", "")) // empty => any
 	maxBodyBytes := getenvIntDefault("MAX_BODY_BYTES", 0)
+
 	// TLS (self-termination)
 	tlsCert := getenvDefault("TLS_CERT_FILE", "")
 	tlsKey := getenvDefault("TLS_KEY_FILE", "")
@@ -94,21 +113,30 @@ func Load() *Config {
 		tlsMinVer = tls.VersionTLS12
 	}
 	return &Config{
-		Addr:                 addr,
-		LogLevel:             level,
-		ReadHeaderTimeout:    5 * time.Second,
-		ReadTimeout:          10 * time.Second,
-		WriteTimeout:         10 * time.Second,
-		IdleTimeout:          60 * time.Second,
-		Env:                  env,
-		HTTPSRedirect:        httpsRedirect,
-		HSTSEnable:           hstsEnable,
-		HSTSMaxAgeSeconds:    hstsMaxAge,
-		HSTSIncludeSubDom:    hstsIncludeSub,
-		HSTSPreload:          hstsPreload,
-		CORSAllowedOrigins:   corsAllowed,
-		CORSAllowCreds:       corsCreds,
-		CSPReportOnly:        cspReportOnly,
+		Addr:              addr,
+		LogLevel:          level,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		Env:               env,
+		// security-related defaults
+		HTTPSRedirect:      httpsRedirect,
+		HSTSEnable:         hstsEnable,
+		HSTSMaxAgeSeconds:  hstsMaxAge,
+		HSTSIncludeSubDom:  hstsIncludeSub,
+		HSTSPreload:        hstsPreload,
+		CORSAllowedOrigins: corsAllowed,
+		CORSAllowCreds:     corsCreds,
+		CSPReportOnly:      cspReportOnly,
+		// Logging hygiene
+		LogIncludeQuery:   logIncludeQuery,
+		LogAllowedHeaders: logAllowedHeaders,
+		LogRedactHeaders:  logRedactHeaders,
+		LogHashIPs:        logHashIPs,
+		LogIPHashSalt:     logIPHashSalt,
+		LogSkipPaths:      logSkipPaths,
+		// Rate-limit / ban defaults
 		RateLimitRPS:         rlRPS,
 		RateLimitBurst:       rlBurst,
 		BanThreshold:         banThresh,
@@ -117,11 +145,15 @@ func Load() *Config {
 		TrustProxy:           trustProxy,
 		BanSilentDrop:        banSilent,
 		AdminEndpointsEnable: adminEnable,
-		AllowedHosts:         allowedHosts,
-		MaxBodyBytes:         int64(maxBodyBytes),
-		TLSCertFile:          tlsCert,
-		TLSKeyFile:           tlsKey,
-		TLSMinVersion:        tlsMinVer,
+
+		// Request/host hardening
+		AllowedHosts: allowedHosts,
+		MaxBodyBytes: int64(maxBodyBytes),
+
+		// TLS (self-termination)
+		TLSCertFile:   tlsCert,
+		TLSKeyFile:    tlsKey,
+		TLSMinVersion: tlsMinVer,
 	}
 }
 
