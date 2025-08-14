@@ -37,12 +37,7 @@ func NewRateBan(cfg *config.Config, logger *slog.Logger) *rateBan {
 		nowFunc: time.Now,
 	}
 	// background sweep to drop expired bans and old hit entries
-	go rb.sweeper()
 	return rb
-}
-
-func (rb *rateBan) sweeper() {
-	rb.sweepOnce(rb.now())
 }
 
 // sweepOnce performs a single maintenance pass. Exported to tests via same package.

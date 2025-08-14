@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -376,6 +377,137 @@ func TestLoadTLSFromPFX_LeafOnly(t *testing.T) {
 	}
 }
 
+// ADD: ensure wrong password returns an error
+func TestLoadTLSFromPFX_BadPassword(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("rsa.GenerateKey: %v", err)
+	}
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject:      pkix.Name{CommonName: "badpass.local"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		DNSNames:     []string{"badpass.local"},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatalf("CreateCertificate: %v", err)
+	}
+	cert, err := x509.ParseCertificate(der)
+	if err != nil {
+		t.Fatalf("ParseCertificate: %v", err)
+	}
+
+	pfx, err := pkcs12modern.Modern.Encode(key, cert, nil, "correct")
+	if err != nil {
+		t.Fatalf("pkcs12 Encode: %v", err)
+	}
+
+	dir := t.TempDir()
+	p := filepath.Join(dir, "badpass.pfx")
+	if err := os.WriteFile(p, pfx, 0o600); err != nil {
+		t.Fatalf("write pfx: %v", err)
+	}
+
+	// wrong password should fail
+	if _, err := loadTLSFromPFX(p, "wrong"); err == nil {
+		t.Fatal("expected error for wrong password, got nil")
+	}
+}
+
+// ADD: ensure corrupt/garbage file returns an error
+func TestLoadTLSFromPFX_CorruptFile(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "corrupt.pfx")
+	// write random bytes (not a valid PKCS#12)
+	data := []byte("not-a-valid-pfx\x00\x01\x02garbage")
+	if err := os.WriteFile(p, data, 0o600); err != nil {
+		t.Fatalf("write corrupt pfx: %v", err)
+	}
+	if _, err := loadTLSFromPFX(p, "irrelevant"); err == nil {
+		t.Fatal("expected error for corrupt PFX, got nil")
+	}
+}
+
+// ADD: ensure a chain PFX yields leaf first and includes intermediates
+func TestLoadTLSFromPFX_WithChain(t *testing.T) {
+	// Create a simple CA and a leaf signed by it
+	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("ca key: %v", err)
+	}
+	caTmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1001),
+		Subject:               pkix.Name{CommonName: "Test Root CA"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+	caDER, err := x509.CreateCertificate(rand.Reader, caTmpl, caTmpl, &caKey.PublicKey, caKey)
+	if err != nil {
+		t.Fatalf("create CA: %v", err)
+	}
+	caCert, err := x509.ParseCertificate(caDER)
+	if err != nil {
+		t.Fatalf("parse CA: %v", err)
+	}
+
+	leafKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("leaf key: %v", err)
+	}
+	leafTmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(2001),
+		Subject:      pkix.Name{CommonName: "chain.local"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		DNSNames:     []string{"chain.local"},
+	}
+	leafDER, err := x509.CreateCertificate(rand.Reader, leafTmpl, caCert, &leafKey.PublicKey, caKey)
+	if err != nil {
+		t.Fatalf("create leaf: %v", err)
+	}
+	leafCert, err := x509.ParseCertificate(leafDER)
+	if err != nil {
+		t.Fatalf("parse leaf: %v", err)
+	}
+
+	// Encode with the CA in the chain slice
+	pfx, err := pkcs12modern.Modern.Encode(leafKey, leafCert, []*x509.Certificate{caCert}, "pw")
+	if err != nil {
+		t.Fatalf("pkcs12 Encode: %v", err)
+	}
+
+	dir := t.TempDir()
+	p := filepath.Join(dir, "chain.pfx")
+	if err := os.WriteFile(p, pfx, 0o600); err != nil {
+		t.Fatalf("write pfx: %v", err)
+	}
+
+	c, err := loadTLSFromPFX(p, "pw")
+	if err != nil {
+		t.Fatalf("loadTLSFromPFX(chain): %v", err)
+	}
+
+	if c.Leaf == nil || c.Leaf.Subject.CommonName != "chain.local" {
+		t.Fatalf("unexpected leaf: %+v", c.Leaf)
+	}
+	if len(c.Certificate) < 2 {
+		t.Fatalf("expected at least leaf+CA in chain, got %d", len(c.Certificate))
+	}
+	// Ensure first certificate is leaf
+	if !bytes.Equal(c.Certificate[0], c.Leaf.Raw) {
+		t.Fatalf("first cert is not leaf")
+	}
+}
+
 func TestServeOnListener_TLS_WithPEM(t *testing.T) {
 	// Bind an ephemeral listener
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -439,5 +571,69 @@ func TestResolveTLS12Suites_Basic(t *testing.T) {
 	})
 	if len(out) == 0 {
 		t.Fatalf("expected some suites to resolve")
+	}
+}
+
+func TestServeOnListener_FallbackToSelfSigned_WhenPFXFails(t *testing.T) {
+	// Bind an ephemeral TCP listener
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	// Write a corrupt PFX to disk
+	dir := t.TempDir()
+	pfxPath := filepath.Join(dir, "corrupt.pfx")
+	if err := os.WriteFile(pfxPath, []byte("this-is-not-a-valid-pfx"), 0o600); err != nil {
+		t.Fatalf("write corrupt pfx: %v", err)
+	}
+
+	// Configure server: PFX is set but invalid; no PEM/ACME
+	cfg := config.Load()
+	cfg.TLSAutocertEnable = false
+	cfg.TLSPFXFile = pfxPath
+	cfg.TLSPFXPassword = "irrelevant"
+	cfg.TLSCertFile = ""
+	cfg.TLSKeyFile = ""
+	cfg.HTTPSRedirect = false
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		_ = serveOnListener(ctx, ln, cfg, newLogger(slog.LevelError))
+		close(done)
+	}()
+
+	// Give the server a moment to start
+	time.Sleep(100 * time.Millisecond)
+
+	// Client that accepts self-signed certs (test-only)
+	url := fmt.Sprintf("https://%s/healthz", ln.Addr().String())
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+		Timeout: 2 * time.Second,
+	}
+
+	// Expect 200 served via self-signed fallback
+	resp, err := client.Get(url)
+	if err != nil {
+		t.Fatalf("GET /healthz (fallback): %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 via fallback, got %d", resp.StatusCode)
+	}
+
+	// Shutdown
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("server did not shut down in time")
 	}
 }
