@@ -14,10 +14,22 @@ on:
 
 permissions:
   contents: read
+  security-events: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-test-security:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go: ['1.22.x', '1.23.x']
+
+    runs-on: ${{ matrix.os }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,18 +37,9 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: 'stable'
+          go-version: ${{ matrix.go }}
           check-latest: true
-
-      - name: Cache Go modules and build cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
+          cache: true
 
       - name: Install go-task
         run: go install github.com/go-task/task/v3/cmd/task@latest
@@ -50,14 +53,28 @@ jobs:
       - name: Lint
         run: task lint
 
-      - name: Test (with coverage)
-        run: go test -v -coverprofile=coverage.out ./...
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test (race + shuffle + atomic coverage)
+        run: go test -race -shuffle=on -covermode=atomic -coverprofile=coverage.out ./...
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.os }}-go${{ matrix.go }}
+          path: coverage.out
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Coverage gate (>= 80%)
+        if: matrix.os == 'ubuntu-latest' && matrix.go == '1.23.x'
+        shell: bash
         run: |
-          total=$(go tool cover -func=coverage.out | grep '^total:' | awk '{print substr($3, 1, length($3)-1)}')
-          echo "Total coverage: ${total}%" >> $GITHUB_STEP_SUMMARY
+          total=$(go tool cover -func=coverage.out | awk '/^total:/{gsub("%","",$3); print $3}')
+          echo "Total coverage: ${total}%" >> "$GITHUB_STEP_SUMMARY"
           awk -v p="$total" 'BEGIN { if (p+0 < 80) { printf "Coverage %.2f%% is below 80%%\n", p; exit 1 } }'
 
       - name: Vulnerability check
+        if: matrix.os == 'ubuntu-latest' && matrix.go == '1.23.x'
         run: task vuln
