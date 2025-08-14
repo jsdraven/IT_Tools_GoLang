@@ -60,6 +60,27 @@ type Config struct {
 	TLSCertFile   string
 	TLSKeyFile    string
 	TLSMinVersion uint16 // tls.VersionTLS13 or tls.VersionTLS12
+
+	// TLS ACME (Let's Encrypt) automation
+	TLSAutocertEnable   bool     // enable autocert manager
+	TLSAutocertEmail    string   // registration/notification email
+	TLSAutocertHosts    []string // allowed hostnames for certificates
+	TLSAutocertCacheDir string   // directory to cache certs
+	TLSACMEDirectoryURL string   // optional directory URL (e.g., LE staging/prod)
+
+	// TLS PFX/PKCS#12 support (e.g., from AD CS)
+	TLSPFXFile     string // path to .pfx/.p12 bundle
+	TLSPFXPassword string // password for PFX
+
+	// TLS (advanced)
+	TLS12CipherSuites []string // names of TLS1.2 cipher suites to allow (empty => secure default)
+
+	// CSR generation (manual issuance flow)
+	TLSGenerateCSR   bool     // when true, generate a CSR and private key at startup then exit
+	TLSCSRCommonName string   // CN for CSR
+	TLSCSRHosts      []string // DNS/IP SANs (comma-separated)
+	TLSCSROrg        string   // organization name
+	TLSCSROutDir     string   // where to write key+csr (e.g., ./certs)
 }
 
 func Load() *Config {
@@ -112,6 +133,28 @@ func Load() *Config {
 	if tlsMin == "TLS1.2" {
 		tlsMinVer = tls.VersionTLS12
 	}
+
+	// TLS ACME (Let's Encrypt)
+	acmeEnable := getenvBoolDefault("TLS_AUTOCERT_ENABLE", false)
+	acmeEmail := getenvDefault("TLS_AUTOCERT_EMAIL", "")
+	acmeHosts := splitCSV(getenvDefault("TLS_AUTOCERT_HOSTS", ""))
+	acmeCache := getenvDefault("TLS_AUTOCERT_CACHE_DIR", "acme-cache")
+	acmeDirURL := getenvDefault("TLS_ACME_DIRECTORY_URL", "")
+
+	// TLS PFX/PKCS#12
+	pfxFile := getenvDefault("TLS_PFX_FILE", "")
+	pfxPass := getenvDefault("TLS_PFX_PASSWORD", "")
+
+	// TLS (advanced)
+	tls12Suites := splitCSV(getenvDefault("TLS12_CIPHER_SUITES", "")) // names; resolved later
+
+	// CSR generation (manual issuance)
+	genCSR := getenvBoolDefault("TLS_GENERATE_CSR", false)
+	csrCN := getenvDefault("TLS_CSR_CN", "")
+	csrHosts := splitCSV(getenvDefault("TLS_CSR_HOSTS", ""))
+	csrOrg := getenvDefault("TLS_CSR_ORG", "")
+	csrOut := getenvDefault("TLS_CSR_OUT_DIR", "certs")
+
 	return &Config{
 		Addr:              addr,
 		LogLevel:          level,
@@ -154,6 +197,27 @@ func Load() *Config {
 		TLSCertFile:   tlsCert,
 		TLSKeyFile:    tlsKey,
 		TLSMinVersion: tlsMinVer,
+
+		// ACME (Let's Encrypt)
+		TLSAutocertEnable:   acmeEnable,
+		TLSAutocertEmail:    acmeEmail,
+		TLSAutocertHosts:    acmeHosts,
+		TLSAutocertCacheDir: acmeCache,
+		TLSACMEDirectoryURL: acmeDirURL,
+
+		// PFX/PKCS#12
+		TLSPFXFile:     pfxFile,
+		TLSPFXPassword: pfxPass,
+
+		// TLS advanced
+		TLS12CipherSuites: tls12Suites,
+
+		// CSR generation
+		TLSGenerateCSR:   genCSR,
+		TLSCSRCommonName: csrCN,
+		TLSCSRHosts:      csrHosts,
+		TLSCSROrg:        csrOrg,
+		TLSCSROutDir:     csrOut,
 	}
 }
 
