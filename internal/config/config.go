@@ -26,6 +26,7 @@ type Config struct {
 	// Security / CORS
 	Env                string // dev|prod (affects some defaults later)
 	HTTPSRedirect      bool   // if true, redirect HTTP -> HTTPS
+	HTTPSRedirectSet   bool   // true if HTTPS_REDIRECT env var was explicitly set
 	HSTSEnable         bool   // if true, set HSTS on HTTPS responses
 	HSTSMaxAgeSeconds  int    // e.g., 63072000 (2 years)
 	HSTSIncludeSubDom  bool
@@ -94,9 +95,17 @@ func Load() *Config {
 
 	// security-related defaults
 	env := strings.ToLower(getenvDefault("ENV", "dev"))
-	httpsRedirect := getenvBoolDefault("HTTPS_REDIRECT", false) // dev-friendly default
-	hstsEnable := getenvBoolDefault("HSTS_ENABLE", false)       // off by default (safer for clones)
-	hstsMaxAge := getenvIntDefault("HSTS_MAX_AGE", 0)           // set if HSTS_ENABLE=true
+
+	// HTTPS_REDIRECT: if set, honor it; if unset, we'll use "auto" behavior in entry.go
+	httpsRedirect := false
+	httpsRedirectSet := false
+	if _, ok := os.LookupEnv("HTTPS_REDIRECT"); ok {
+		httpsRedirect = getenvBoolDefault("HTTPS_REDIRECT", false)
+		httpsRedirectSet = true
+	}
+
+	hstsEnable := getenvBoolDefault("HSTS_ENABLE", false) // off by default (safer for clones)
+	hstsMaxAge := getenvIntDefault("HSTS_MAX_AGE", 0)     // set if HSTS_ENABLE=true
 	hstsIncludeSub := getenvBoolDefault("HSTS_INCLUDE_SUBDOMAINS", false)
 	hstsPreload := getenvBoolDefault("HSTS_PRELOAD", false)
 	corsAllowed := splitCSV(getenvDefault("CORS_ALLOWED_ORIGINS", "")) // empty => same-origin only
@@ -165,6 +174,7 @@ func Load() *Config {
 		Env:               env,
 		// security-related defaults
 		HTTPSRedirect:      httpsRedirect,
+		HTTPSRedirectSet:   httpsRedirectSet,
 		HSTSEnable:         hstsEnable,
 		HSTSMaxAgeSeconds:  hstsMaxAge,
 		HSTSIncludeSubDom:  hstsIncludeSub,

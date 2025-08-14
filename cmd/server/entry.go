@@ -94,7 +94,11 @@ func serveOnListener(ctx context.Context, ln net.Listener, cfg *config.Config, l
 
 			// Challenge server on :80 (required for HTTP-01). If bind fails, log and continue.
 			go func() {
-				if err := http.ListenAndServe(":80", m.HTTPHandler(nil)); err != nil {
+				var fallback http.Handler
+				if wantHTTPRedirect(cfg, false /* real cert */) {
+					fallback = redirectToHTTPSHandler(cfg.Addr)
+				}
+				if err := http.ListenAndServe(":80", m.HTTPHandler(fallback)); err != nil {
 					logger.Warn("acme_http_01_bind_failed", "err", err)
 				}
 			}()
@@ -122,6 +126,13 @@ func serveOnListener(ctx context.Context, ln net.Listener, cfg *config.Config, l
 
 		// 2) PFX/PKCS#12 (e.g., AD CS)
 		if cfg.TLSPFXFile != "" {
+			if wantHTTPRedirect(cfg, false /* real cert */) {
+				go func() {
+					if err := http.ListenAndServe(":80", redirectToHTTPSHandler(cfg.Addr)); err != nil {
+						logger.Warn("http_redirect_bind_failed", "err", err)
+					}
+				}()
+			}
 			cert, err := loadTLSFromPFX(cfg.TLSPFXFile, cfg.TLSPFXPassword)
 			if err != nil {
 				logger.Error("pfx_load_failed", "err", err)
@@ -144,6 +155,13 @@ func serveOnListener(ctx context.Context, ln net.Listener, cfg *config.Config, l
 		// 3) PEM cert/key pair
 		if cfg.TLSCertFile != "" && cfg.TLSKeyFile != "" {
 			// Note: ServeTLS will read the files; we still enforce min/ciphers via Server.TLSConfig
+			if wantHTTPRedirect(cfg, false /* real cert */) {
+				go func() {
+					if err := http.ListenAndServe(":80", redirectToHTTPSHandler(cfg.Addr)); err != nil {
+						logger.Warn("http_redirect_bind_failed", "err", err)
+					}
+				}()
+			}
 			srv.TLSConfig = &tls.Config{
 				MinVersion: cfg.TLSMinVersion,
 			}
@@ -167,6 +185,13 @@ func serveOnListener(ctx context.Context, ln net.Listener, cfg *config.Config, l
 					logger.Error("server_error", "err", err)
 				}
 				return
+			}
+			if wantHTTPRedirect(cfg, true /* self-signed */) {
+				go func() {
+					if err := http.ListenAndServe(":80", redirectToHTTPSHandler(cfg.Addr)); err != nil {
+						logger.Warn("http_redirect_bind_failed", "err", err)
+					}
+				}()
 			}
 			tlsCfg := &tls.Config{
 				MinVersion:   cfg.TLSMinVersion,
@@ -365,3 +390,37 @@ func generateSelfSigned() (tls.Certificate, error) {
 
 // bigInt1 returns a constant serial number for simplicity.
 func bigInt1() *big.Int { return big.NewInt(1) }
+
+// wantHTTPRedirect decides whether to run an HTTP->HTTPS redirect listener.
+// If HTTPS_REDIRECT is explicitly set, honor it; otherwise:
+//   - real certs (ACME/PFX/PEM): redirect
+//   - self-signed: no redirect
+func wantHTTPRedirect(cfg *config.Config, usingSelfSigned bool) bool {
+	if cfg.HTTPSRedirectSet {
+		return cfg.HTTPSRedirect
+	}
+	return !usingSelfSigned
+}
+
+func redirectToHTTPSHandler(tlsAddr string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host := r.Host
+		// Preserve non-default TLS ports (e.g., :8080 in dev).
+		if h, p, err := net.SplitHostPort(tlsAddr); err == nil && p != "" && p != "443" {
+			if hh, _, err2 := net.SplitHostPort(host); err2 == nil {
+				host = hh
+			}
+			if h != "" {
+				host = h + ":" + p
+			} else {
+				host = host + ":" + p
+			}
+		} else {
+			if hh, _, err2 := net.SplitHostPort(host); err2 == nil {
+				host = hh
+			}
+		}
+		target := "https://" + host + r.URL.RequestURI()
+		http.Redirect(w, r, target, http.StatusPermanentRedirect) // 308
+	})
+}

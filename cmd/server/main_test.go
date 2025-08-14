@@ -17,6 +17,7 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -635,5 +636,476 @@ func TestServeOnListener_FallbackToSelfSigned_WhenPFXFails(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("server did not shut down in time")
+	}
+}
+
+// ADD: redirect handler preserves non-default HTTPS ports (e.g., :8080)
+func TestRedirectToHTTPSHandler_NonDefaultPort(t *testing.T) {
+	h := redirectToHTTPSHandler(":8080")
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "http://example.com/healthz?x=1", nil)
+	req.Host = "example.com"
+
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusPermanentRedirect {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusPermanentRedirect)
+	}
+	loc := rr.Result().Header.Get("Location")
+	want := "https://example.com:8080/healthz?x=1"
+	if loc != want {
+		t.Fatalf("Location: got %q, want %q", loc, want)
+	}
+}
+
+// ADD: redirect handler strips port for default 443
+func TestRedirectToHTTPSHandler_Default443(t *testing.T) {
+	h := redirectToHTTPSHandler(":443")
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "http://example.com/", nil)
+	// simulate incoming Host with :80 that should be stripped
+	req.Host = "example.com:80"
+
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusPermanentRedirect {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusPermanentRedirect)
+	}
+	loc := rr.Result().Header.Get("Location")
+	want := "https://example.com/"
+	if loc != want {
+		t.Fatalf("Location: got %q, want %q", loc, want)
+	}
+}
+
+// ADD: wantHTTPRedirect auto mode behavior (env unset)
+func TestWantHTTPRedirect_Auto(t *testing.T) {
+	cfg := &config.Config{
+		HTTPSRedirect:    false,
+		HTTPSRedirectSet: false, // env unset => auto
+	}
+	if !wantHTTPRedirect(cfg, false /* real cert (ACME/PEM/PFX) */) {
+		t.Fatal("auto mode with real cert: expected redirect=true")
+	}
+	if wantHTTPRedirect(cfg, true /* self-signed */) {
+		t.Fatal("auto mode with self-signed: expected redirect=false")
+	}
+}
+
+// ADD: wantHTTPRedirect forced on/off via env
+func TestWantHTTPRedirect_ForcedOnOff(t *testing.T) {
+	cfgOn := &config.Config{
+		HTTPSRedirect:    true,
+		HTTPSRedirectSet: true,
+	}
+	if !wantHTTPRedirect(cfgOn, false) || !wantHTTPRedirect(cfgOn, true) {
+		t.Fatal("forced on: expected redirect=true for both real and self-signed")
+	}
+
+	cfgOff := &config.Config{
+		HTTPSRedirect:    false,
+		HTTPSRedirectSet: true,
+	}
+	if wantHTTPRedirect(cfgOff, false) || wantHTTPRedirect(cfgOff, true) {
+		t.Fatal("forced off: expected redirect=false for both real and self-signed")
+	}
+}
+
+// ADD: helper to write a quick PEM cert+key pair to disk (self-signed)
+func writeSelfSignedPEM(t *testing.T, cn string, hosts []string) (certPath, keyPath string) {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("key: %v", err)
+	}
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(9001),
+		Subject:      pkix.Name{CommonName: cn},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		DNSNames:     nil,
+		IPAddresses:  nil,
+	}
+	for _, h := range hosts {
+		if ip := net.ParseIP(h); ip != nil {
+			tmpl.IPAddresses = append(tmpl.IPAddresses, ip)
+		} else {
+			tmpl.DNSNames = append(tmpl.DNSNames, h)
+		}
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatalf("CreateCertificate: %v", err)
+	}
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+
+	dir := t.TempDir()
+	certPath = filepath.Join(dir, "server.crt")
+	keyPath = filepath.Join(dir, "server.key")
+	if err := os.WriteFile(certPath, certPEM, 0o600); err != nil {
+		t.Fatalf("write cert: %v", err)
+	}
+	if err := os.WriteFile(keyPath, keyPEM, 0o600); err != nil {
+		t.Fatalf("write key: %v", err)
+	}
+	return certPath, keyPath
+}
+
+// ADD: serveOnListener — PFX TLS happy path (HTTP redirect explicitly off)
+func TestServeOnListener_PFXTLS_Healthz_NoRedirect(t *testing.T) {
+	// Generate a modern PFX
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("key: %v", err)
+	}
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(1111),
+		Subject:      pkix.Name{CommonName: "pfx.local"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		DNSNames:     []string{"localhost"},
+		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1")},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatalf("cert: %v", err)
+	}
+	cert, err := x509.ParseCertificate(der)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	pfx, err := pkcs12modern.Modern.Encode(key, cert, nil, "pw")
+	if err != nil {
+		t.Fatalf("encode pfx: %v", err)
+	}
+
+	dir := t.TempDir()
+	pfxPath := filepath.Join(dir, "server.pfx")
+	if err := os.WriteFile(pfxPath, pfx, 0o600); err != nil {
+		t.Fatalf("write pfx: %v", err)
+	}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	cfg := config.Load()
+	cfg.TLSAutocertEnable = false
+	cfg.TLSPFXFile = pfxPath
+	cfg.TLSPFXPassword = "pw"
+	cfg.TLSCertFile, cfg.TLSKeyFile = "", ""
+	// Force redirect OFF so we don't try to bind :80 during tests
+	cfg.HTTPSRedirect = false
+	cfg.HTTPSRedirectSet = true
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		_ = serveOnListener(ctx, ln, cfg, newLogger(slog.LevelError))
+		close(done)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	url := fmt.Sprintf("https://%s/healthz", ln.Addr().String())
+	client := &http.Client{
+		Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
+		Timeout:   2 * time.Second,
+	}
+	resp, err := client.Get(url)
+	if err != nil {
+		t.Fatalf("GET /healthz: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("server did not shut down")
+	}
+}
+
+// ADD: serveOnListener — PEM TLS happy path (HTTP redirect explicitly off)
+func TestServeOnListener_PEMTLS_Healthz_NoRedirect(t *testing.T) {
+	certPath, keyPath := writeSelfSignedPEM(t, "pem.local", []string{"localhost", "127.0.0.1"})
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	cfg := config.Load()
+	cfg.TLSAutocertEnable = false
+	cfg.TLSPFXFile = ""
+	cfg.TLSPFXPassword = ""
+	cfg.TLSCertFile = certPath
+	cfg.TLSKeyFile = keyPath
+	cfg.HTTPSRedirect = false
+	cfg.HTTPSRedirectSet = true
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		_ = serveOnListener(ctx, ln, cfg, newLogger(slog.LevelError))
+		close(done)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	url := fmt.Sprintf("https://%s/healthz", ln.Addr().String())
+	client := &http.Client{
+		Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
+		Timeout:   2 * time.Second,
+	}
+	resp, err := client.Get(url)
+	if err != nil {
+		t.Fatalf("GET /healthz: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("server did not shut down")
+	}
+}
+
+// ADD: TLS1.3 server should reject TLS1.2-only client
+func TestServeOnListener_TLS13_Rejects_TLS12_Client(t *testing.T) {
+	// self-signed path is simplest
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	cfg := config.Load()
+	cfg.TLSMinVersion = tls.VersionTLS13
+	cfg.TLSAutocertEnable = false
+	cfg.TLSPFXFile = ""
+	cfg.TLSCertFile, cfg.TLSKeyFile = "", ""
+	cfg.HTTPSRedirect = false
+	cfg.HTTPSRedirectSet = true
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		_ = serveOnListener(ctx, ln, cfg, newLogger(slog.LevelError))
+		close(done)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	url := fmt.Sprintf("https://%s/healthz", ln.Addr().String())
+	// Force client to max out at TLS1.2
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+				MinVersion:         tls.VersionTLS12,
+				MaxVersion:         tls.VersionTLS12,
+			},
+		},
+		Timeout: 2 * time.Second,
+	}
+	if _, err := client.Get(url); err == nil {
+		t.Fatal("expected handshake error for TLS1.2 client against TLS1.3-only server")
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("server did not shut down")
+	}
+}
+
+// ADD: TLS1.2 server enforces specified cipher suite
+func TestServeOnListener_TLS12_EnforcesCipher(t *testing.T) {
+	// self-signed path is simplest
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	cfg := config.Load()
+	cfg.TLSMinVersion = tls.VersionTLS12
+	cfg.TLS12CipherSuites = []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"}
+	cfg.TLSAutocertEnable = false
+	cfg.TLSPFXFile = ""
+	cfg.TLSCertFile, cfg.TLSKeyFile = "", ""
+	cfg.HTTPSRedirect = false
+	cfg.HTTPSRedirectSet = true
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		_ = serveOnListener(ctx, ln, cfg, newLogger(slog.LevelError))
+		close(done)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	// TLS1.2 client
+	url := fmt.Sprintf("https://%s/healthz", ln.Addr().String())
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+			MinVersion:         tls.VersionTLS12,
+			MaxVersion:         tls.VersionTLS12,
+		},
+	}
+	client := &http.Client{Transport: tr, Timeout: 2 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		t.Fatalf("GET /healthz: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if resp.TLS == nil {
+		t.Fatal("no TLS connection state")
+	}
+	if resp.TLS.Version != tls.VersionTLS12 {
+		t.Fatalf("tls version: got %x, want %x", resp.TLS.Version, tls.VersionTLS12)
+	}
+	if resp.TLS.CipherSuite != tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 {
+		t.Fatalf("cipher: got %x, want %x", resp.TLS.CipherSuite, tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("server did not shut down")
+	}
+}
+
+// ADD: when both PFX and PEM are configured, PFX should be used
+func TestServeOnListener_BranchPreference_PFXOverPEM(t *testing.T) {
+	// --- build a PFX cert with a distinctive CN ---
+	pfxKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("pfx key: %v", err)
+	}
+	pfxTmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(3001),
+		Subject:      pkix.Name{CommonName: "pfx.local"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		DNSNames:     []string{"localhost"},
+		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1")},
+	}
+	pfxDER, err := x509.CreateCertificate(rand.Reader, pfxTmpl, pfxTmpl, &pfxKey.PublicKey, pfxKey)
+	if err != nil {
+		t.Fatalf("pfx cert: %v", err)
+	}
+	pfxCert, err := x509.ParseCertificate(pfxDER)
+	if err != nil {
+		t.Fatalf("pfx parse: %v", err)
+	}
+	pfxBytes, err := pkcs12modern.Modern.Encode(pfxKey, pfxCert, nil, "pw")
+	if err != nil {
+		t.Fatalf("pfx encode: %v", err)
+	}
+
+	// --- build a PEM cert with a different CN ---
+	pemCertPath, pemKeyPath := writeSelfSignedPEM(t, "pem.local", []string{"localhost", "127.0.0.1"})
+
+	// --- write PFX to disk ---
+	dir := t.TempDir()
+	pfxPath := filepath.Join(dir, "server.pfx")
+	if err := os.WriteFile(pfxPath, pfxBytes, 0o600); err != nil {
+		t.Fatalf("write pfx: %v", err)
+	}
+
+	// --- start server with BOTH PFX and PEM configured ---
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	cfg := config.Load()
+	cfg.TLSAutocertEnable = false
+	cfg.TLSPFXFile = pfxPath
+	cfg.TLSPFXPassword = "pw"
+	cfg.TLSCertFile = pemCertPath
+	cfg.TLSKeyFile = pemKeyPath
+	// Avoid binding :80 in CI
+	cfg.HTTPSRedirect = false
+	cfg.HTTPSRedirectSet = true
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		_ = serveOnListener(ctx, ln, cfg, newLogger(slog.LevelError))
+		close(done)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	// --- connect and verify the served cert is the PFX cert (CN = pfx.local) ---
+	url := fmt.Sprintf("https://%s/healthz", ln.Addr().String())
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+		Timeout: 2 * time.Second,
+	}
+	resp, err := client.Get(url)
+	if err != nil {
+		t.Fatalf("GET /healthz: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if resp.TLS == nil || len(resp.TLS.PeerCertificates) == 0 {
+		t.Fatal("expected peer certificates")
+	}
+	gotCN := resp.TLS.PeerCertificates[0].Subject.CommonName
+	if gotCN != "pfx.local" {
+		t.Fatalf("branch preference: got CN %q, want %q (PFX should win over PEM)", gotCN, "pfx.local")
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("server did not shut down")
 	}
 }
