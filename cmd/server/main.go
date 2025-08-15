@@ -10,6 +10,7 @@ import (
 	"os/signal"
 
 	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
+	"github.com/jsdraven/IT_Tools_GoLang/internal/entry"
 )
 
 func main() {
@@ -17,7 +18,7 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	if err := run(ctx, cfg); err != nil {
+	if err := entry.Run(ctx, cfg); err != nil {
 		os.Exit(1)
 	}
 }

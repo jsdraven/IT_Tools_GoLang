@@ -33,6 +33,8 @@ tasks:
     desc: Format code with gofumpt
     cmds:
       - gofumpt -l -w .
+      - goimports -w .
+      - go fmt ./...
 
   lint:
     desc: Static analysis

@@ -1,6 +1,6 @@
-// Package server - tests for security/cors middleware.
+// Package security_test - tests for security/cors middleware.
 // SPDX-License-Identifier: AGPL-3.0-or-later
-package server
+package security_test
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
+	mwsecurity "github.com/jsdraven/IT_Tools_GoLang/internal/middleware/security"
 )
 
 func nextOK() http.Handler {
@@ -27,7 +28,7 @@ func TestSecurityHeaders_TLS_WithHSTS(t *testing.T) {
 	cfg.HSTSMaxAgeSeconds = 63072000
 	cfg.CSPReportOnly = false
 
-	h := SecurityHeaders(cfg)(nextOK())
+	h := mwsecurity.Headers(cfg)(nextOK())
 
 	req := httptest.NewRequest(http.MethodGet, "https://example.com/x", nil)
 	// mark as TLS so HSTS path is exercised
@@ -54,7 +55,7 @@ func TestSecurityHeaders_CSP_ReportOnly(t *testing.T) {
 	cfg := config.Load()
 	cfg.CSPReportOnly = true
 
-	h := SecurityHeaders(cfg)(nextOK())
+	h := mwsecurity.Headers(cfg)(nextOK())
 
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/x", nil)
 	rr := httptest.NewRecorder()
@@ -74,7 +75,7 @@ func TestCORS_Preflight_AllowedOrigin(t *testing.T) {
 	cfg.CORSAllowedOrigins = []string{origin}
 	cfg.CORSAllowCreds = true
 
-	h := CORS(cfg)(nextOK())
+	h := mwsecurity.CORS(cfg)(nextOK())
 
 	req := httptest.NewRequest(http.MethodOptions, "http://svc.local/api", nil)
 	req.Header.Set("Origin", origin)
@@ -101,7 +102,7 @@ func TestCORS_Preflight_NotAllowedOrigin(t *testing.T) {
 	cfg := config.Load()
 	cfg.CORSAllowedOrigins = []string{"http://allowed.local"} // different than request
 
-	h := CORS(cfg)(nextOK())
+	h := mwsecurity.CORS(cfg)(nextOK())
 
 	req := httptest.NewRequest(http.MethodOptions, "http://svc.local/api", nil)
 	req.Header.Set("Origin", "http://not-allowed.local")
@@ -122,7 +123,7 @@ func TestRequireHTTPS_RedirectsPlainHTTP(t *testing.T) {
 	cfg := config.Load()
 	cfg.HTTPSRedirect = true
 
-	h := RequireHTTPS(cfg)(nextOK())
+	h := mwsecurity.RequireHTTPS(cfg)(nextOK())
 
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/path?q=1", nil)
 	rr := httptest.NewRecorder()
@@ -141,7 +142,7 @@ func TestAllowedHosts(t *testing.T) {
 	cfg := config.Load()
 	cfg.AllowedHosts = []string{"svc.local:8080"}
 
-	h := AllowedHosts(cfg)(nextOK())
+	h := mwsecurity.AllowedHosts(cfg)(nextOK())
 
 	// allowed
 	req := httptest.NewRequest(http.MethodGet, "http://svc.local:8080/x", nil)
@@ -170,7 +171,7 @@ func TestMaxBodyBytes(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	h := MaxBodyBytes(cfg)(readAll)
+	h := mwsecurity.MaxBodyBytes(cfg)(readAll)
 
 	// under limit OK
 	req := httptest.NewRequest(http.MethodPost, "http://svc.local/u", strings.NewReader("1234567"))
@@ -195,7 +196,7 @@ func TestSecurityHeaders_NoHSTS_OnHTTP_EvenWhenEnabled(t *testing.T) {
 	cfg.HSTSEnable = true
 	cfg.HSTSMaxAgeSeconds = 31536000
 
-	h := SecurityHeaders(cfg)(nextOK())
+	h := mwsecurity.Headers(cfg)(nextOK())
 
 	// Plain HTTP request (no TLS) → should NOT emit HSTS
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/x", nil)
@@ -213,7 +214,7 @@ func TestCORS_SimpleRequest_AllowedOrigin(t *testing.T) {
 	cfg.CORSAllowedOrigins = []string{origin}
 	cfg.CORSAllowCreds = true
 
-	h := CORS(cfg)(nextOK())
+	h := mwsecurity.CORS(cfg)(nextOK())
 
 	// Simple GET with Origin (not preflight)
 	req := httptest.NewRequest(http.MethodGet, "https://svc.local/data", nil)
@@ -236,7 +237,7 @@ func TestCORS_SimpleRequest_NotAllowedOrigin(t *testing.T) {
 	cfg := config.Load()
 	cfg.CORSAllowedOrigins = []string{"https://allowed.local"}
 
-	h := CORS(cfg)(nextOK())
+	h := mwsecurity.CORS(cfg)(nextOK())
 
 	req := httptest.NewRequest(http.MethodGet, "https://svc.local/data", nil)
 	req.Header.Set("Origin", "https://not-allowed.local")
@@ -255,7 +256,7 @@ func TestRequireHTTPS_NoRedirectWhenAlreadyTLS(t *testing.T) {
 	cfg := config.Load()
 	cfg.HTTPSRedirect = true
 
-	h := RequireHTTPS(cfg)(nextOK())
+	h := mwsecurity.RequireHTTPS(cfg)(nextOK())
 
 	req := httptest.NewRequest(http.MethodGet, "https://example.com/secure", nil)
 	req.TLS = &tls.ConnectionState{} // simulate HTTPS
@@ -280,7 +281,7 @@ func TestMaxBodyBytes_StreamOverLimit_WithoutContentLength(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	h := MaxBodyBytes(cfg)(readAll)
+	h := mwsecurity.MaxBodyBytes(cfg)(readAll)
 
 	// No Content-Length header; body is larger than limit
 	body := bytes.NewBufferString("0123456789ABC") // 13 bytes

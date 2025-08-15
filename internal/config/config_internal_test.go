@@ -1,7 +1,29 @@
-// internal/config/config_branch_test.go
+// Package config: config_internal_test helps test non exported functions.
 package config
 
-import "testing"
+import (
+	"log/slog"
+	"testing"
+)
+
+func TestParseLevelTable(t *testing.T) {
+	cases := []struct {
+		in   string
+		want slog.Level
+	}{
+		{"DEBUG", slog.LevelDebug},
+		{"Warn", slog.LevelWarn},
+		{"error", slog.LevelError},
+		{"INFO", slog.LevelInfo}, // explicit
+		{"", slog.LevelInfo},     // default on empty/unknown
+		{"nope", slog.LevelInfo}, // default on unknown
+	}
+	for _, tc := range cases {
+		if got := parseLevel(tc.in); got != tc.want {
+			t.Fatalf("parseLevel(%q) = %v, want %v", tc.in, got, tc.want)
+		}
+	}
+}
 
 func TestGetenvBoolDefault(t *testing.T) {
 	t.Setenv("XBOOL", "YES")

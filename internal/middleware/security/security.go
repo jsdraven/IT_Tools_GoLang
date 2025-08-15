@@ -1,6 +1,6 @@
-// Package server: security & CORS middleware.
+// Package security: security & CORS middleware.
 // SPDX-License-Identifier: AGPL-3.0-or-later
-package server
+package security
 
 import (
 	"net/http"
@@ -10,9 +10,9 @@ import (
 	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
 )
 
-// SecurityHeaders returns middleware that sets strict security headers.
+// Headers returns middleware that sets strict security headers.
 // Very strict CSP; adjust if you later allow CDNs or inline scripts.
-func SecurityHeaders(cfg *config.Config) func(http.Handler) http.Handler {
+func Headers(cfg *config.Config) func(http.Handler) http.Handler {
 	// Very strict baseline CSP; includes connect-src 'self' (allows same-origin XHR/WS).
 	// Add "wss:" to connect-src if you serve WebSockets on different schemes.
 	csp := "default-src 'self'; " +

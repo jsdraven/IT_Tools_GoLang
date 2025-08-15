@@ -3,18 +3,23 @@
 package server
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
+	"io"
 	"log/slog"
-	"net"
+	"mime"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
+	mlog "github.com/jsdraven/IT_Tools_GoLang/internal/middleware/logging"
+	mwrateban "github.com/jsdraven/IT_Tools_GoLang/internal/middleware/rateban"
+	mws "github.com/jsdraven/IT_Tools_GoLang/internal/middleware/security"
 )
 
 // NewRouter builds the chi router with security/cors/logging middleware.
@@ -28,18 +33,18 @@ func NewRouter(cfg *config.Config, logger *slog.Logger) http.Handler {
 	r.Use(middleware.Timeout(60 * time.Second))
 
 	// Rate-limit + auto-ban
-	rb := NewRateBan(cfg, logger)
+	rb := mwrateban.NewRateBan(cfg, logger)
 	r.Use(rb.Middleware())
 
 	// Security & CORS
-	r.Use(RequireHTTPS(cfg))
-	r.Use(AllowedHosts(cfg))
-	r.Use(MaxBodyBytes(cfg))
-	r.Use(SecurityHeaders(cfg))
-	r.Use(CORS(cfg))
+	r.Use(mws.RequireHTTPS(cfg))
+	r.Use(mws.AllowedHosts(cfg))
+	r.Use(mws.MaxBodyBytes(cfg))
+	r.Use(mws.Headers(cfg))
+	r.Use(mws.CORS(cfg))
 
 	// Structured request logging
-	r.Use(Logging(cfg, logger))
+	r.Use(mlog.HTTP(cfg, logger))
 
 	// Health
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -51,6 +56,42 @@ func NewRouter(cfg *config.Config, logger *slog.Logger) http.Handler {
 		fmt.Fprintln(w, "IT_Tools_GoLang is running")
 	})
 
+	// (optional) demo download endpoint you can delete later.
+	// Hits:  GET /download/{name}
+	// Serves a file from ./downloads/{name} with safe headers and strict length.
+	r.Get("/download/{name}", func(w http.ResponseWriter, r *http.Request) {
+		name := chi.URLParam(r, "name")
+		// very small allowlist demo: strip path separators
+		if strings.Contains(name, "/") || strings.Contains(name, "\\") {
+			http.Error(w, "invalid filename", http.StatusBadRequest)
+			return
+		}
+		path := filepath.Join("downloads", name)
+		f, err := os.Open(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				http.NotFound(w, r)
+				return
+			}
+			http.Error(w, "error opening file", http.StatusInternalServerError)
+			return
+		}
+		defer f.Close()
+		st, err := f.Stat()
+		if err != nil || !st.Mode().IsRegular() {
+			http.Error(w, "unreadable file", http.StatusBadRequest)
+			return
+		}
+		// best-effort type from extension; fall back to octet-stream
+		ct := mime.TypeByExtension(filepath.Ext(name))
+		if ct == "" {
+			ct = "application/octet-stream"
+		}
+		if err := WriteSafeDownload(w, r, name, st.Size(), f, ct); err != nil {
+			_ = err // (optional) log it if you want
+		}
+	})
+
 	// Read-only visibility into bans (optional)
 	if cfg.AdminEndpointsEnable {
 		r.Get("/admin/bans", rb.HandleListBans())
@@ -59,117 +100,96 @@ func NewRouter(cfg *config.Config, logger *slog.Logger) http.Handler {
 	return r
 }
 
-// Logging is a slog middleware using chi's WrapResponseWriter to capture status.
-func Logging(cfg *config.Config, logger *slog.Logger) func(http.Handler) http.Handler {
-	// Precompute header allowlist/redaction (lower-cased keys)
-	allowed := map[string]struct{}{}
-	for _, h := range cfg.LogAllowedHeaders {
-		allowed[strings.ToLower(strings.TrimSpace(h))] = struct{}{}
+// WriteSafeDownload streams a file-like response with strict headers and Range support.
+// Requires the source to implement BOTH io.ReadSeeker and io.ReaderAt so we can build
+// a bounded SectionReader and still satisfy ServeContent's ReadSeeker requirement.
+//
+// filename: suggested name for the client (used in Content-Disposition)
+// size:     exact size of the payload in bytes (must be >= 0)
+// ctype:    content type to set; if empty, defaults to application/octet-stream
+func WriteSafeDownload(
+	w http.ResponseWriter,
+	r *http.Request,
+	filename string,
+	size int64,
+	reader interface {
+		io.ReadSeeker
+		io.ReaderAt
+	},
+	ctype string,
+) error {
+	if size < 0 {
+		http.Error(w, "unknown length", http.StatusInternalServerError)
+		return fmt.Errorf("WriteSafeDownload: negative size")
 	}
-	redact := map[string]struct{}{}
-	for _, h := range cfg.LogRedactHeaders {
-		redact[strings.ToLower(strings.TrimSpace(h))] = struct{}{}
-	}
-
-	// Helper: get client IP respecting TrustProxy (first XFF) or RemoteAddr
-	extractIP := func(r *http.Request) string {
-		if cfg.TrustProxy {
-			if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-				parts := strings.Split(xff, ",")
-				ip := strings.TrimSpace(parts[0])
-				if h, _, err := net.SplitHostPort(ip); err == nil && h != "" {
-					return h
-				}
-				return ip
-			}
-		}
-		host, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			return r.RemoteAddr
-		}
-		return host
+	if strings.TrimSpace(ctype) == "" {
+		ctype = "application/octet-stream"
 	}
 
-	// Helper: optionally hash IP
-	hashIP := func(ip string) (label string, value any) {
-		if !cfg.LogHashIPs {
-			return "remote", ip
+	// Security & meta headers (nosniff is also set globally by SecurityHeaders)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Type", ctype)
+	w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
+	setDownloadDisposition(w, filename)
+
+	// Bound the readable window to [0, size) and let ServeContent handle Range/HEAD.
+	sec := io.NewSectionReader(reader, 0, size) // requires ReaderAt
+	// SectionReader implements ReadSeeker, so ServeContent will honor Range requests.
+	http.ServeContent(w, r, filename, time.Time{}, sec)
+	return nil
+}
+
+// setDownloadDisposition sets Content-Disposition with an ASCII fallback and RFC5987 filename*.
+func setDownloadDisposition(w http.ResponseWriter, name string) {
+	ascii := makeASCIIFallback(name)
+	utf8Star := "UTF-8''" + urlEncodeRFC5987(name)
+	// Keep quoting minimal and escape embedded quotes/backslashes defensively.
+	var b strings.Builder
+	b.WriteString("attachment; filename=\"")
+	for i := 0; i < len(ascii); i++ {
+		c := ascii[i]
+		if c == '"' || c == '\\' {
+			b.WriteByte('\\')
 		}
-		sum := sha256.Sum256([]byte(cfg.LogIPHashSalt + ip))
-		return "remote_hash", hex.EncodeToString(sum[:16]) // 128-bit prefix is plenty
+		b.WriteByte(c)
 	}
+	b.WriteString("\"; filename*=")
+	b.WriteString(utf8Star)
+	w.Header().Set("Content-Disposition", b.String())
+}
 
-	// Helper: decide path vs. full request URI
-	pathOf := func(r *http.Request) string {
-		if cfg.LogIncludeQuery {
-			return r.URL.RequestURI()
+// makeASCIIFallback returns a conservative ASCII-only filename for legacy user agents.
+func makeASCIIFallback(s string) string {
+	const ok = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
+	var b strings.Builder
+	for _, r := range s {
+		if r < 128 && strings.ContainsRune(ok, r) {
+			b.WriteRune(r)
+			continue
 		}
-		return r.URL.Path
+		b.WriteByte('_')
 	}
-
-	// Helper: build a compact header map based on allowlist/redact rules
-	pickHeaders := func(hdr http.Header) map[string]string {
-		if len(allowed) == 0 {
-			return nil
-		}
-		out := make(map[string]string, len(allowed))
-		for k, vals := range hdr {
-			lk := strings.ToLower(k)
-			if _, ok := allowed[lk]; !ok {
-				continue
-			}
-			v := strings.Join(vals, ",")
-			if _, red := redact[lk]; red {
-				v = "[REDACTED]"
-			}
-			out[k] = v
-		}
-		if len(out) == 0 {
-			return nil
-		}
-		return out
+	out := b.String()
+	if out == "" {
+		return "download.bin"
 	}
+	return out
+}
 
-	// Fast path check for paths we should skip entirely
-	shouldSkip := func(p string) bool {
-		for _, pref := range cfg.LogSkipPaths {
-			pref = strings.TrimSpace(pref)
-			if pref != "" && strings.HasPrefix(p, pref) {
-				return true
-			}
+// urlEncodeRFC5987 percent-encodes bytes appropriate for filename* UTF-8 form.
+func urlEncodeRFC5987(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+			(c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-' {
+			b.WriteByte(c)
+		} else {
+			const hex = "0123456789ABCDEF"
+			b.WriteByte('%')
+			b.WriteByte(hex[c>>4])
+			b.WriteByte(hex[c&0x0F])
 		}
-		return false
 	}
-
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			p := pathOf(r)
-			if shouldSkip(p) {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
-			start := time.Now()
-
-			next.ServeHTTP(ww, r)
-
-			ipLabel, ipVal := hashIP(extractIP(r))
-			fields := []any{
-				"method", r.Method,
-				"path", p,
-				"status", ww.Status(),
-				"bytes", ww.BytesWritten(),
-				"duration_ms", time.Since(start).Milliseconds(),
-				ipLabel, ipVal,
-				"request_id", middleware.GetReqID(r.Context()),
-			}
-
-			if hs := pickHeaders(r.Header); hs != nil {
-				fields = append(fields, "headers", hs)
-			}
-
-			logger.Info("http_request", fields...)
-		})
-	}
+	return b.String()
 }

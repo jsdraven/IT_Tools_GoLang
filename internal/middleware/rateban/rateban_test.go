@@ -1,13 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-package server
+package rateban_test
 
 import (
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
+	mwrateban "github.com/jsdraven/IT_Tools_GoLang/internal/middleware/rateban"
 )
+
+func discardLogger() *slog.Logger {
+	return slog.New(slog.NewJSONHandler(io.Discard, nil))
+}
 
 func TestRateBan_BanAfterThreshold(t *testing.T) {
 	cfg := config.Load()
@@ -18,7 +25,7 @@ func TestRateBan_BanAfterThreshold(t *testing.T) {
 	cfg.BanDurationSeconds = 60
 	cfg.BanSilentDrop = false // send a status for test determinism
 
-	rb := NewRateBan(cfg, discardLogger())
+	rb := mwrateban.NewRateBan(cfg, discardLogger())
 	h := rb.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -52,7 +59,7 @@ func TestRateBan_ListBans(t *testing.T) {
 	cfg.BanDurationSeconds = 60
 	cfg.AdminEndpointsEnable = true
 
-	rb := NewRateBan(cfg, discardLogger())
+	rb := mwrateban.NewRateBan(cfg, discardLogger())
 	hList := rb.HandleListBans()
 	hMW := rb.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

@@ -1,7 +1,7 @@
-// Package server: per-IP rate limit + auto-ban middleware.
+// Package rateban: per-IP rate limit + auto-ban middleware.
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
-package server
+package rateban
 
 import (
 	"encoding/json"
@@ -18,24 +18,43 @@ import (
 )
 
 type rateBan struct {
-	mu      sync.Mutex
-	limits  map[string]*rate.Limiter // ip -> limiter
-	hits    map[string][]time.Time   // ip -> timestamps of 429s
-	bans    map[string]time.Time     // ip -> ban expiry
-	cfg     *config.Config
-	logger  *slog.Logger
-	nowFunc func() time.Time
+	mu        sync.Mutex
+	limits    map[string]*rate.Limiter // ip -> limiter
+	hits      map[string][]time.Time   // ip -> timestamps of 429s
+	bans      map[string]time.Time     // ip -> ban expiry
+	cfg       *config.Config
+	logger    *slog.Logger
+	nowFunc   func() time.Time
+	stopSweep chan struct{}
+	lastSweep time.Time
 }
 
 func NewRateBan(cfg *config.Config, logger *slog.Logger) *rateBan {
 	rb := &rateBan{
-		limits:  make(map[string]*rate.Limiter),
-		hits:    make(map[string][]time.Time),
-		bans:    make(map[string]time.Time),
-		cfg:     cfg,
-		logger:  logger,
-		nowFunc: time.Now,
+		limits:    make(map[string]*rate.Limiter),
+		hits:      make(map[string][]time.Time),
+		bans:      make(map[string]time.Time),
+		cfg:       cfg,
+		logger:    logger,
+		nowFunc:   time.Now,
+		stopSweep: make(chan struct{}),
 	}
+	// Background maintenance: unban expired + prune old hits for idle IPs.
+	// Use BanWindowSeconds as a natural sweep interval floor; cap it so it’s not too chatty.
+	interval := time.Duration(max(15, min(120, cfg.BanWindowSeconds/2))) * time.Second
+	go func() {
+		tk := time.NewTicker(interval)
+		defer tk.Stop()
+		for {
+			select {
+			case <-tk.C:
+				rb.sweepOnce(rb.now())
+			case <-rb.stopSweep:
+				return
+			}
+		}
+	}()
+
 	// background sweep to drop expired bans and old hit entries
 	return rb
 }
@@ -43,13 +62,15 @@ func NewRateBan(cfg *config.Config, logger *slog.Logger) *rateBan {
 // sweepOnce performs a single maintenance pass. Exported to tests via same package.
 func (rb *rateBan) sweepOnce(now time.Time) {
 	rb.mu.Lock()
-	defer rb.mu.Unlock()
+
+	// Stage unbanned IPs to log outside the lock
+	var unbanned []string
 
 	// Unban expired
 	for ip, exp := range rb.bans {
 		if now.After(exp) {
 			delete(rb.bans, ip)
-			rb.logger.Error("ip_unbanned", "ip", ip, "time", now)
+			unbanned = append(unbanned, ip)
 		}
 	}
 
@@ -59,17 +80,46 @@ func (rb *rateBan) sweepOnce(now time.Time) {
 		j := 0
 		for _, ts := range arr {
 			if now.Sub(ts) <= win {
-				rb.hits[ip][j] = ts
+				arr[j] = ts // compact in-place
 				j++
 			}
 		}
-		rb.hits[ip] = rb.hits[ip][:j]
+		if j == 0 {
+			// remove map entry entirely to keep map small
+			delete(rb.hits, ip)
+		} else {
+			rb.hits[ip] = arr[:j]
+		}
+	}
+
+	rb.mu.Unlock()
+
+	// Log outside the critical section
+	for _, ip := range unbanned {
+		rb.logger.Info("ip_unbanned", "ip", ip, "time", now)
 	}
 }
 
+func (rb *rateBan) maybeSweep(now time.Time) {
+	// sweep at most once per ~BanWindow
+	win := time.Duration(rb.cfg.BanWindowSeconds) * time.Second
+	if win <= 0 {
+		win = 60 * time.Second
+	}
+	rb.mu.Lock()
+	if rb.lastSweep.IsZero() || now.Sub(rb.lastSweep) >= win {
+		rb.lastSweep = now
+		rb.mu.Unlock() // unlock before doing the real sweep (it locks internally)
+		rb.sweepOnce(now)
+		return
+	}
+	rb.mu.Unlock()
+}
+
 func (rb *rateBan) now() time.Time {
-	if rb.nowFunc != nil {
-		return rb.nowFunc()
+	f := rb.nowFunc // read once to avoid races if tests swap it
+	if f != nil {
+		return f()
 	}
 	return time.Now()
 }
@@ -154,6 +204,7 @@ func (rb *rateBan) extractIP(r *http.Request) string {
 func (rb *rateBan) Middleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			rb.maybeSweep(rb.now())
 			ip := rb.extractIP(r)
 
 			// Already banned?
@@ -205,6 +256,7 @@ func (rb *rateBan) Middleware() func(http.Handler) http.Handler {
 // HandleListBans returns a JSON map { "ip": "expiryRFC3339", ... }.
 func (rb *rateBan) HandleListBans() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		rb.sweepOnce(rb.now())
 		type row struct {
 			IP     string `json:"ip"`
 			Expire string `json:"expire"`
@@ -223,4 +275,21 @@ func (rb *rateBan) HandleListBans() http.HandlerFunc {
 		enc := json.NewEncoder(w)
 		_ = enc.Encode(out)
 	}
+}
+
+// optional helper if you ever need to stop the sweeper (e.g., tests/shutdown)
+func (rb *rateBan) StopSweeper() { close(rb.stopSweep) }
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
