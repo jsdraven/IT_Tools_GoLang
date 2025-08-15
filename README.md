@@ -21,7 +21,8 @@ This project is designed to be self-hosted. Under **AGPL-3.0-or-later**, if you 
 
 ## Quick start
 ```bash
-go run .
+task run
+# this is shorthand for go run /cmd/server/main.go
 # visit http://localhost:8080
 ```
 
@@ -61,14 +62,19 @@ go install golang.org/x/vuln/cmd/govulncheck@latest
 ```
 ### Useful commands:
 ```bash
-task dev     # hot reload with Air
-task fmt     # format with gofumpt
-task lint    # staticcheck
-task test    # run tests
-task vuln    # govulncheck
-task build   # build
-task clean   # clean caches
-task cover   # Show total coverage in console
+task tools      # install / upgrade tools
+task dev        # hot reload with Air
+task fmt        # format with gofumpt
+task lint       # staticcheck
+task test       # run tests
+task vuln       # govulncheck
+task build      # build
+task release    # build an optimizd release binary
+task clean      # clean caches
+task cover      # Show total coverage in console
+task cover-html # open HTML coverage
+task precommit  # ryn checks before commiting (best used in git hook)
+task run        # runs main package
 ```
 
 ## Licensing details (AGPL network use)
