@@ -148,3 +148,28 @@
 {"time":"2025-08-16T15:27:56.7115269-07:00","level":"INFO","msg":"server_listening","addr":"127.0.0.1:53944"}
 {"time":"2025-08-16T15:27:56.7685205-07:00","level":"WARN","msg":"using_self_signed_tls","note":"for staging/dev; configure ACME/PFX/PEM for production"}
 {"time":"2025-08-16T15:27:56.8136895-07:00","level":"INFO","msg":"server_stopped"}
+{"time":"2025-08-16T15:28:50.9657612-07:00","level":"INFO","msg":"csr_written","key":"C:\\Users\\jjust\\AppData\\Local\\Temp\\TestGenerateCSRAndRunCSRMode162795876\\001\\server.key","csr":"C:\\Users\\jjust\\AppData\\Local\\Temp\\TestGenerateCSRAndRunCSRMode162795876\\001\\server.csr","sha256":"f20ea259a245b555973a9bdd161d3998"}
+{"time":"2025-08-16T15:28:50.9662811-07:00","level":"INFO","msg":"csr_generated","out_dir":"C:\\Users\\jjust\\AppData\\Local\\Temp\\TestGenerateCSRAndRunCSRMode162795876\\001"}
+{"time":"2025-08-16T15:28:51.2472286-07:00","level":"INFO","msg":"server_listening","addr":"127.0.0.1:53957"}
+{"time":"2025-08-16T15:28:51.3248481-07:00","level":"INFO","msg":"server_stopped"}
+{"time":"2025-08-16T15:28:51.3794554-07:00","level":"INFO","msg":"server_listening","addr":"127.0.0.1:53961"}
+{"time":"2025-08-16T15:28:51.4815857-07:00","level":"INFO","msg":"server_stopped"}
+{"time":"2025-08-16T15:28:51.5249992-07:00","level":"INFO","msg":"server_listening","addr":"127.0.0.1:53963"}
+{"time":"2025-08-16T15:28:51.627786-07:00","level":"INFO","msg":"server_stopped"}
+{"time":"2025-08-16T15:28:51.6794029-07:00","level":"ERROR","msg":"listen_error","err":"listen tcp: address 65536: invalid port","addr":"127.0.0.1:65536"}
+{"time":"2025-08-16T15:28:51.7727427-07:00","level":"INFO","msg":"server_listening","addr":"127.0.0.1:53971"}
+{"time":"2025-08-16T15:28:51.7914491-07:00","level":"WARN","msg":"using_self_signed_tls","note":"for staging/dev; configure ACME/PFX/PEM for production"}
+{"time":"2025-08-16T15:28:51.8503275-07:00","level":"INFO","msg":"server_stopped"}
+{"time":"2025-08-16T15:28:51.8513375-07:00","level":"INFO","msg":"server_listening","addr":"127.0.0.1:53973"}
+{"time":"2025-08-16T15:28:51.8513375-07:00","level":"WARN","msg":"http_redirect_bind_failed","err":"listen tcp :80: bind: Only one usage of each socket address (protocol/network address/port) is normally permitted."}
+{"time":"2025-08-16T15:28:51.8563834-07:00","level":"ERROR","msg":"pfx_load_failed","err":"pkcs12: error reading P12 data: asn1: structure error: tags don't match (16 vs {class:1 tag:20 length:104 isCompound:true}) {optional:false explicit:false application:false private:false defaultValue:<nil> tag:<nil> stringType:0 timeType:0 set:false omitEmpty:false} pfxPdu @2"}
+{"time":"2025-08-16T15:28:51.8820728-07:00","level":"WARN","msg":"using_self_signed_tls","note":"for staging/dev; configure ACME/PFX/PEM for production"}
+{"time":"2025-08-16T15:28:51.9537321-07:00","level":"INFO","msg":"server_stopped"}
+{"time":"2025-08-16T15:28:51.9999258-07:00","level":"INFO","msg":"server_listening","addr":"127.0.0.1:53975"}
+{"time":"2025-08-16T15:28:52.1035009-07:00","level":"INFO","msg":"server_stopped"}
+{"time":"2025-08-16T15:28:52.1045628-07:00","level":"INFO","msg":"server_listening","addr":"127.0.0.1:53977"}
+{"time":"2025-08-16T15:28:52.1892599-07:00","level":"WARN","msg":"using_self_signed_tls","note":"for staging/dev; configure ACME/PFX/PEM for production"}
+{"time":"2025-08-16T15:28:52.2053634-07:00","level":"INFO","msg":"server_stopped"}
+{"time":"2025-08-16T15:28:52.2053634-07:00","level":"INFO","msg":"server_listening","addr":"127.0.0.1:53979"}
+{"time":"2025-08-16T15:28:52.2381674-07:00","level":"WARN","msg":"using_self_signed_tls","note":"for staging/dev; configure ACME/PFX/PEM for production"}
+{"time":"2025-08-16T15:28:52.3072459-07:00","level":"INFO","msg":"server_stopped"}
