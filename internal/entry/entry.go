@@ -14,7 +14,7 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 
 	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
-	"github.com/jsdraven/IT_Tools_GoLang/internal/logx"
+	"github.com/jsdraven/IT_Tools_GoLang/internal/log"
 	"github.com/jsdraven/IT_Tools_GoLang/internal/server"
 )
 
@@ -31,7 +31,7 @@ func BindListener(addr string, logger *slog.Logger) (net.Listener, error) {
 // Run wires config, logger, listener, and serving loop together.
 // If TLSGenerateCSR=true, it writes a key+CSR and exits without starting the server.
 func Run(ctx context.Context, cfg *config.Config) error {
-	logger := logx.New(cfg.LogLevel)
+	logger := log.New(cfg)
 
 	// Optional CSR generation mode
 	if cfg.TLSGenerateCSR {

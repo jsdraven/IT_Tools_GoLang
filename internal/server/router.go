@@ -17,7 +17,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
-	mlog "github.com/jsdraven/IT_Tools_GoLang/internal/middleware/logging"
+	log "github.com/jsdraven/IT_Tools_GoLang/internal/log"
 	mwrateban "github.com/jsdraven/IT_Tools_GoLang/internal/middleware/rateban"
 	mws "github.com/jsdraven/IT_Tools_GoLang/internal/middleware/security"
 )
@@ -44,7 +44,7 @@ func NewRouter(cfg *config.Config, logger *slog.Logger) http.Handler {
 	r.Use(mws.CORS(cfg))
 
 	// Structured request logging
-	r.Use(mlog.HTTP(cfg, logger))
+	r.Use(log.Middleware(cfg, logger))
 
 	// Health
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {

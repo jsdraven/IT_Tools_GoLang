@@ -10,7 +10,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"log/slog"
 	"math/big"
 	"net"
 	"net/http"
@@ -20,7 +19,7 @@ import (
 	"time"
 
 	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
-	"github.com/jsdraven/IT_Tools_GoLang/internal/logx"
+	"github.com/jsdraven/IT_Tools_GoLang/internal/log"
 	pkcs12modern "software.sslmate.com/src/go-pkcs12"
 )
 
@@ -334,7 +333,8 @@ func TestServeOnListener_TLS_WithPEM(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		_ = ServeOnListener(ctx, ln, cfg, logx.New(slog.LevelInfo))
+		logger := log.New(cfg)
+		_ = ServeOnListener(ctx, ln, cfg, logger)
 		close(done)
 	}()
 
@@ -443,7 +443,8 @@ func TestServeOnListener_PEMTLS_Healthz_NoRedirect(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		_ = ServeOnListener(ctx, ln, cfg, logx.New(slog.LevelError))
+		logger := log.New(cfg)
+		_ = ServeOnListener(ctx, ln, cfg, logger)
 		close(done)
 	}()
 
@@ -533,7 +534,8 @@ func TestServeOnListener_BranchPreference_PFXOverPEM(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		_ = ServeOnListener(ctx, ln, cfg, logx.New(slog.LevelError))
+		logger := log.New(cfg)
+		_ = ServeOnListener(ctx, ln, cfg, logger)
 		close(done)
 	}()
 

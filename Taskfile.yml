@@ -99,3 +99,4 @@ tasks:
       - task: lint
       - task: test
       - task: vuln
+      - task: cover
