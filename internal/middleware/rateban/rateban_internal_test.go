@@ -124,3 +124,47 @@ func TestRateBan_Now_DefaultVsCustom(t *testing.T) {
 	rb.nowFunc = nil
 	_ = rb.now()
 }
+
+func TestRateBan_StopSweeper(t *testing.T) {
+	// Setup: Create an instance of rateBan with an open channel
+	rb := &rateBan{
+		stopSweep: make(chan struct{}),
+	}
+
+	// Execute the method we're testing
+	rb.StopSweeper()
+
+	// Verification: Check if the channel is actually closed.
+	// The `<-rb.stopSweep` read will not block.
+	// `ok` will be `false` if the channel is closed.
+	select {
+	case _, ok := <-rb.stopSweep:
+		if ok {
+			t.Error("stopSweep channel was not closed, but a value was received")
+		}
+		// If !ok, the test passes because the channel is closed as expected.
+	default:
+		// This case should not be reached if the channel is closed.
+		// If it is, it means the channel is still open and would block.
+		t.Error("stopSweep channel was not closed, as a read would block")
+	}
+}
+
+// Optional: Test for panic on double-close
+func TestRateBan_StopSweeper_PanicsOnDoubleClose(t *testing.T) {
+	// Setup
+	rb := &rateBan{
+		stopSweep: make(chan struct{}),
+	}
+	rb.StopSweeper() // First close
+
+	// Defer a function to recover from the expected panic
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("The code did not panic on second call to StopSweeper")
+		}
+	}()
+
+	// Execute the second call, which should panic
+	rb.StopSweeper()
+}

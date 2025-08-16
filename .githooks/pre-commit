@@ -38,7 +38,7 @@ need_tool() {
 }
 
 need_tool gofumpt     "go install mvdan.cc/gofumpt@latest"
-need_tool staticcheck "go install honnef.co/go/tools/cmd/staticcheck@latest"
+need_tool golangci-lint "go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"
 need_tool govulncheck "go install golang.org/x/vuln/cmd/govulncheck@latest"
 
 if [ "$missing" -ne 0 ]; then
@@ -48,7 +48,7 @@ fi
 
 echo "[pre-commit] formatting, linting, testing, vuln scan..."
 gofumpt -l -w .
-staticcheck ./...
+golangci-lint run ./...
 go test ./...
 govulncheck ./...
 echo "[pre-commit] OK"

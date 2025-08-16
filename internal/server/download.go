@@ -7,13 +7,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-
-	//"regexp"
 	"strings"
 	"time"
-	//"golang.org/x/text/unicode/norm"
-	//"golang.org/x/text/runes"
-	//"unicode"
 )
 
 type AttachmentOpts struct {

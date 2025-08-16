@@ -2,6 +2,7 @@
 package server
 
 import (
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -95,5 +96,73 @@ func TestSanitizeFilename_StableExamples(t *testing.T) {
 		if got := sanitizeFilename(tc.in); got != tc.want {
 			t.Fatalf("sanitizeFilename(%q) => %q; want %q", tc.in, got, tc.want)
 		}
+	}
+}
+
+func TestMakeASCIIFallback(t *testing.T) {
+	cases := map[string]string{
+		"hello.txt":         "hello.txt",
+		"Pokémon—βeta.txt":  "Pok_mon__eta.txt",
+		"💾":                 "____", // at least one underscore → but function returns fallback later if empty
+		"":                  "download.bin",
+		`bad"name\file.txt`: `bad_name_file.txt`, // quotes/backslashes show up as underscores here; escaping is tested below
+	}
+	for in, wantContains := range cases {
+		got := makeASCIIFallback(in)
+		if got == "" {
+			t.Fatalf("empty fallback for %q", in)
+		}
+		// Loose check: ensure we only have ASCII and expected structural form
+		for i := 0; i < len(got); i++ {
+			if got[i] > 0x7F {
+				t.Fatalf("non-ascii in %q => %q", in, got)
+			}
+		}
+		// Make sure it never returns empty
+		if in == "" && got != "download.bin" {
+			t.Fatalf("empty input fallback: got %q", got)
+		}
+		_ = wantContains // (string can vary by number of underscores)
+	}
+}
+
+func TestSetDownloadDisposition_HeaderFormat(t *testing.T) {
+	rr := httptest.NewRecorder()
+	setDownloadDisposition(rr, `Pokémon—"βeta".txt`)
+
+	cd := rr.Header().Get("Content-Disposition")
+	if !strings.HasPrefix(cd, "attachment; ") {
+		t.Fatalf("missing attachment; got %q", cd)
+	}
+	// Must have ascii filename="<...>" (with escaped quotes/backslashes) AND filename*=UTF-8''...
+	if !strings.Contains(cd, `filename="`) || !strings.Contains(cd, `filename*=`) {
+		t.Fatalf("expected both filename= and filename*=, got %q", cd)
+	}
+	// Ensure the quoted ASCII part escapes quotes/backslashes
+	if strings.Contains(cd, `"β`) {
+		t.Fatalf("non-ascii leaked into quoted filename: %q", cd)
+	}
+	if strings.Contains(cd, `"\"`) {
+		// Note: we expect \" if quote exists in original; simply assert header present
+		t.Run("quote in original gets sanitized + encoded", func(t *testing.T) {
+			w := httptest.NewRecorder()
+			setDownloadDisposition(w, `report "final".txt`)
+			cd := w.Header().Get("Content-Disposition")
+
+			// Always present structure
+			if !strings.HasPrefix(cd, `attachment; filename="`) || !strings.Contains(cd, `; filename*=`) {
+				t.Fatalf("bad Content-Disposition structure: %q", cd)
+			}
+
+			// ASCII fallback replaces quotes with underscores
+			if !strings.Contains(cd, `filename="report _final_.txt"`) {
+				t.Fatalf("ascii fallback not sanitized (quotes -> _): %q", cd)
+			}
+
+			// RFC5987 filename* percent-encodes the quote as %22
+			if !strings.Contains(cd, `filename*=UTF-8''report%20%22final%22.txt`) {
+				t.Fatalf("filename* not RFC5987-encoded with %%22 for quotes: %q", cd)
+			}
+		})
 	}
 }

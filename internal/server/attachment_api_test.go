@@ -6,13 +6,21 @@ package server_test
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"mime"
 	"net/http"
+	"net/http/httptest"
 	"net/textproto"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"testing"
 	"time"
 	"unicode"
+
+	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
+	"github.com/jsdraven/IT_Tools_GoLang/internal/server"
 )
 
 // AttachmentOpts controls how WriteAttachment writes the response.
@@ -406,4 +414,181 @@ func ParseContentDisposition(h http.Header) (disposition, filename, filenameStar
 	filename = textproto.TrimString(params["filename"])
 	filenameStar = params["filename*"]
 	return
+}
+
+type memReaderAtSeeker struct{ b []byte }
+
+func (m memReaderAtSeeker) Read(p []byte) (int, error) { return copy(p, m.b), io.EOF }
+func (m memReaderAtSeeker) ReadAt(p []byte, off int64) (int, error) {
+	if off >= int64(len(m.b)) {
+		return 0, io.EOF
+	}
+	n := copy(p, m.b[off:])
+	if int(off)+n == len(m.b) {
+		return n, io.EOF
+	}
+	return n, nil
+}
+
+func (m memReaderAtSeeker) Seek(off int64, whence int) (int64, error) {
+	switch whence {
+	case io.SeekStart:
+		if off != 0 {
+			return 0, fmt.Errorf("sectioned by ServeContent; Seek not used")
+		}
+		return 0, nil
+	default:
+		return 0, fmt.Errorf("not supported")
+	}
+}
+
+func TestWriteSafeDownload_Basic(t *testing.T) {
+	data := []byte("hello world")
+	r := memReaderAtSeeker{b: data}
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://x/download", nil)
+
+	if err := server.WriteSafeDownload(rr, req, "greeting.txt", int64(len(data)), r, "text/plain"); err != nil {
+		t.Fatalf("WriteSafeDownload: %v", err)
+	}
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: %d", rr.Code)
+	}
+	if rr.Header().Get("Content-Type") != "text/plain" {
+		t.Fatalf("ctype: %q", rr.Header().Get("Content-Type"))
+	}
+	if rr.Header().Get("Content-Length") != strconv.Itoa(len(data)) {
+		t.Fatalf("length header mismatch")
+	}
+	if rr.Header().Get("Content-Disposition") == "" {
+		t.Fatalf("missing Content-Disposition")
+	}
+	if body := rr.Body.String(); body != string(data) {
+		t.Fatalf("body mismatch: %q", body)
+	}
+}
+
+func TestWriteSafeDownload_HEAD(t *testing.T) {
+	data := []byte("abc1234567")
+	r := memReaderAtSeeker{b: data}
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodHead, "http://x/download", nil)
+
+	if err := server.WriteSafeDownload(rr, req, "file.bin", int64(len(data)), r, ""); err != nil {
+		t.Fatalf("WriteSafeDownload: %v", err)
+	}
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: %d", rr.Code)
+	}
+	if rr.Body.Len() != 0 {
+		t.Fatalf("HEAD should have empty body")
+	}
+}
+
+func TestWriteSafeDownload_Range(t *testing.T) {
+	data := []byte("0123456789ABCDEFG")
+	r := memReaderAtSeeker{b: data}
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://x/download", nil)
+	req.Header.Set("Range", "bytes=5-9") // "56789"
+
+	if err := server.WriteSafeDownload(rr, req, "rng.bin", int64(len(data)), r, "application/octet-stream"); err != nil {
+		t.Fatalf("WriteSafeDownload: %v", err)
+	}
+	if rr.Code != http.StatusPartialContent {
+		t.Fatalf("want 206, got %d", rr.Code)
+	}
+	if rr.Body.String() != "56789" {
+		t.Fatalf("range body mismatch: %q", rr.Body.String())
+	}
+}
+
+func TestWriteSafeDownload_NegativeSize(t *testing.T) {
+	data := []byte("x")
+	r := memReaderAtSeeker{b: data}
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://x", nil)
+	err := server.WriteSafeDownload(rr, req, "x.bin", -1, r, "application/octet-stream")
+	if err == nil {
+		t.Fatalf("expected error for negative size")
+	}
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}
+
+func TestDownloadRoute_BasicAndErrors(t *testing.T) {
+	// Prepare a temp working dir with ./downloads/
+	dir := t.TempDir()
+	cwd, _ := os.Getwd()
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	if err := os.MkdirAll("downloads", 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	// Write a file the route can serve
+	payload := []byte("payload")
+	if err := os.WriteFile(filepath.Join("downloads", "test.txt"), payload, 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	cfg := config.Load()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	h := server.NewRouter(cfg, logger)
+
+	t.Run("OK", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/download/test.txt", nil)
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("download ok status: %d", rr.Code)
+		}
+		if cd := rr.Header().Get("Content-Disposition"); cd == "" {
+			t.Fatalf("missing Content-Disposition")
+		}
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/download/missing.bin", nil)
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		if rr.Code != http.StatusNotFound {
+			t.Fatalf("missing file should be 404, got %d", rr.Code)
+		}
+	})
+
+	t.Run("BadFilenameSingleSegment_Backslash_400", func(t *testing.T) {
+		// Keep it to ONE segment so the route matches, then trigger your 400 guard
+		req := httptest.NewRequest(http.MethodGet, "/download/a\\b.txt", nil)
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("bad filename should be 400, got %d", rr.Code)
+		}
+	})
+
+	t.Run("RouterBehavior_EncodedSlash_DoesNotServe", func(t *testing.T) {
+		// Depending on URL decoding behavior, this may be a route miss (404)
+		// or reach the handler and get rejected as bad filename (400).
+		req := httptest.NewRequest(http.MethodGet, "/download/a%2Fb.txt", nil)
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		if rr.Code != http.StatusNotFound && rr.Code != http.StatusBadRequest {
+			t.Fatalf("expected 404 (route miss) or 400 (rejected), got %d", rr.Code)
+		}
+	})
+
+	t.Run("RouterBehavior_ExtraSegment_404", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/download/x/y", nil)
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		if rr.Code != http.StatusNotFound {
+			t.Fatalf("extra segment should not match route; got %d", rr.Code)
+		}
+	})
 }

@@ -14,10 +14,16 @@ tasks:
   tools:
     desc: Install/upgrade dev tools (gofumpt, staticcheck, govulncheck, air)
     cmds:
-      - go install mvdan.cc/gofumpt@latest
-      - go install honnef.co/go/tools/cmd/staticcheck@latest
-      - go install golang.org/x/vuln/cmd/govulncheck@latest
+      - go install github.com/go-task/task/v3/cmd/task@latest
       - go install github.com/air-verse/air@latest
+      - go install mvdan.cc/gofumpt@latest
+      - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      - go install golang.org/x/vuln/cmd/govulncheck@latest
+      - go install golang.org/x/tools/gopls@latest
+      - go install golang.org/x/tools/cmd/goimports@latest
+      - go install github.com/vektra/mockery/v2@latest
+      - go install github.com/go-delve/delve/cmd/dlv@latest
+      - go get github.com/stretchr/testify@latest
 
   run:
     desc: Run the app once
@@ -39,7 +45,7 @@ tasks:
   lint:
     desc: Static analysis
     cmds:
-      - staticcheck ./...
+      - golangci-lint run ./...
 
   test:
     desc: Run tests verbosely with coverage report

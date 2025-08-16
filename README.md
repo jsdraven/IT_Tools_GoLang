@@ -57,15 +57,20 @@ Tip (Windows/VS Code): set Format on Save and organize imports; prefer `gofumpt`
 go install github.com/go-task/task/v3/cmd/task@latest
 go install github.com/cosmtrek/air@latest
 go install mvdan.cc/gofumpt@latest
-go install honnef.co/go/tools/cmd/staticcheck@latest
+go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 go install golang.org/x/vuln/cmd/govulncheck@latest
+go install golang.org/x/tools/gopls@latest
+go install golang.org/x/tools/cmd/goimports@latest
+go install github.com/vektra/mockery/v2@latest
+go install github.com/go-delve/delve/cmd/dlv@latest
+go get github.com/stretchr/testify@latest
 ```
 ### Useful commands:
 ```bash
 task tools      # install / upgrade tools
 task dev        # hot reload with Air
 task fmt        # format with gofumpt
-task lint       # staticcheck
+task lint       # golangci-lint
 task test       # run tests
 task vuln       # govulncheck
 task build      # build
