@@ -9,8 +9,6 @@ require (
 	golang.org/x/time v0.12.0
 )
 
-require github.com/stretchr/testify v1.10.0 // indirect
-
 require (
 	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/text v0.28.0 // indirect

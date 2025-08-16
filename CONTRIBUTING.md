@@ -44,20 +44,12 @@ Please follow the guidance in `[SECURITY.md](SECURITY.md)`. Do not include secre
 ## Local development setup
 - Go 1.24+  
 - Recommended tools:
-  - `staticcheck` — `go install honnef.co/go/tools/cmd/staticcheck@latest`
-  - `gofumpt` — `go install mvdan.cc/gofumpt@latest` (or via VS Code Go extension)
-  - github.com/go-chi/chi/v5 v5.2.2
-  - github.com/joho/godotenv v1.5.1
-  - golang.org/x/crypto v0.41.0
-  - golang.org/x/mod v0.26.0
-  - golang.org/x/net v0.42.0
-  - golang.org/x/sync v0.16.0
-  - golang.org/x/sys v0.35.0
-  - golang.org/x/term v0.34.0
-  - golang.org/x/text v0.28.0
-  - golang.org/x/time v0.12.0
-  - golang.org/x/tools v0.35.0
-  - software.sslmate.com/src/go-pkcs12 v0.6.0
+  - `task` - `go install github.com/go-task/task/v3/cmd/task@latest` 
+      ([Taskfile.yml](./Taskfile.yml) has all toolchain installs under task tools)
+  - [VS Code](https://code.visualstudio.com/download)
+  - [Git](https://git-scm.com/downloads)
+  - [Chat-GPT](https://chatgpt.com/) (Heck Yeah, I'm using it!)
+  - [Gemini](https://gemini.google.com/) (Sometimes you just need a second opinion)
 
 ## DCO quickstart
 Every commit must include a sign-off line:

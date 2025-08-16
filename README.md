@@ -54,16 +54,7 @@ Tip (Windows/VS Code): set Format on Save and organize imports; prefer `gofumpt`
 
 ### Install tools once:
 ```bash
-go install github.com/go-task/task/v3/cmd/task@latest
-go install github.com/cosmtrek/air@latest
-go install mvdan.cc/gofumpt@latest
-go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-go install golang.org/x/vuln/cmd/govulncheck@latest
-go install golang.org/x/tools/gopls@latest
-go install golang.org/x/tools/cmd/goimports@latest
-go install github.com/vektra/mockery/v2@latest
-go install github.com/go-delve/delve/cmd/dlv@latest
-go get github.com/stretchr/testify@latest
+task tools
 ```
 ### Useful commands:
 ```bash
@@ -109,4 +100,4 @@ See `[CONTRIBUTING.md](CONTRIBUTING.md)` for full details.
 *    Commercial: contact [jjustin@gmail.com](mailto:jjustin@gmail.com)
 
 ## Accreditation
-This project benefited from assistance by ChatGPT (GPT-5 Thinking) from OpenAI for architecture discussion, documentation drafting, and code review suggestions. All final decisions and code are authored and reviewed by the maintainer. If you spot issues, please open an Issue or PR.
+This project benefited from assistance from both Gemini 2.5 Pro from Google and ChatGPT (GPT-5 Thinking) from OpenAI for architecture discussion, documentation drafting, and code review suggestions. All final decisions and code are authored and reviewed by the maintainer. If you spot issues, please open an Issue or PR.

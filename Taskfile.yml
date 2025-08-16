@@ -81,8 +81,9 @@ tasks:
       - go build -o bin/server ./cmd/server
 
   clean:
-    desc: Clean build/test caches
+    desc: Clean build/test caches and mod list
     cmds:
+      - go mod tidy
       - go clean -cache -testcache
 
   release:
@@ -94,6 +95,7 @@ tasks:
     desc: Run checks before committing
     cmds:
       - task: fmt
+      - task: clean
       - task: lint
       - task: test
       - task: vuln
