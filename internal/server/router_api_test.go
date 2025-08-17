@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
 	"github.com/jsdraven/IT_Tools_GoLang/internal/server"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/config"
 )
 
 func discardLogger() *slog.Logger {

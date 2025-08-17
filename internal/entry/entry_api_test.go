@@ -19,9 +19,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
 	"github.com/jsdraven/IT_Tools_GoLang/internal/entry"
-	"github.com/jsdraven/IT_Tools_GoLang/internal/log"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/config"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/logging"
 	pkcs12modern "software.sslmate.com/src/go-pkcs12"
 )
 
@@ -178,7 +178,7 @@ func TestServeOnListener_SelfSignedTLS_Healthz(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		logger := log.New(cfg)
+		logger := logging.New(cfg)
 		_ = entry.ServeOnListener(ctx, ln, cfg, logger)
 		close(done)
 	}()
@@ -241,7 +241,7 @@ func TestServeOnListener_FallbackToSelfSigned_WhenPFXFails(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		logger := log.New(cfg)
+		logger := logging.New(cfg)
 		_ = entry.ServeOnListener(ctx, ln, cfg, logger)
 		close(done)
 	}()
@@ -333,7 +333,7 @@ func TestServeOnListener_PFXTLS_Healthz_NoRedirect(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		logger := log.New(cfg)
+		logger := logging.New(cfg)
 		_ = entry.ServeOnListener(ctx, ln, cfg, logger)
 		close(done)
 	}()
@@ -384,7 +384,7 @@ func TestServeOnListener_TLS13_Rejects_TLS12_Client(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		logger := log.New(cfg)
+		logger := logging.New(cfg)
 		_ = entry.ServeOnListener(ctx, ln, cfg, logger)
 		close(done)
 	}()
@@ -438,7 +438,7 @@ func TestServeOnListener_TLS12_EnforcesCipher(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		logger := log.New(cfg)
+		logger := logging.New(cfg)
 		_ = entry.ServeOnListener(ctx, ln, cfg, logger)
 		close(done)
 	}()

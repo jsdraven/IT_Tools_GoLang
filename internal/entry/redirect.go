@@ -5,7 +5,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/config"
 )
 
 // wantHTTPRedirect decides whether to run an HTTP->HTTPS redirect listener.

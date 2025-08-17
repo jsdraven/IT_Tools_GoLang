@@ -137,6 +137,37 @@ func sanitizeFilename(s string) string {
 	return out
 }
 
+// makeASCIIFallback returns an ASCII-only representation of name, replacing any
+// non-ASCII or disallowed characters with underscores. If the resulting string
+// is empty, a safe default is returned.
+func makeASCIIFallback(name string) string {
+	if name == "" {
+		return "download.bin"
+	}
+	var b strings.Builder
+	for _, r := range name {
+		if r < 128 && r != '"' && r != '\\' {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('_')
+		}
+	}
+	out := b.String()
+	if strings.TrimSpace(out) == "" {
+		return "download.bin"
+	}
+	return out
+}
+
+// setDownloadDisposition writes a Content-Disposition header using both a
+// sanitized ASCII filename and an RFC 5987 encoded UTF-8 filename parameter.
+func setDownloadDisposition(w http.ResponseWriter, name string) {
+	ascii := makeASCIIFallback(name)
+	rfc5987 := url.PathEscape(name)
+	cd := fmt.Sprintf("attachment; filename=\"%s\"; filename*=UTF-8''%s", ascii, rfc5987)
+	w.Header().Set("Content-Disposition", cd)
+}
+
 // toASCII transliterates common accented characters to plain ASCII
 // and drops any remaining non-ASCII runes.
 // toASCII transliterates common accented characters to plain ASCII,

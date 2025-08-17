@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/config"
 )
 
 func discardLogger() *slog.Logger {

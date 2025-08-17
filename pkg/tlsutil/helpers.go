@@ -1,5 +1,5 @@
-// Package entry: Helpers GO
-package entry
+// Package tlsutil contains small helper utilities for TLS functions.
+package tlsutil
 
 import (
 	"crypto/sha256"

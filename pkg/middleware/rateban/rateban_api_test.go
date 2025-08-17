@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
-	mwrateban "github.com/jsdraven/IT_Tools_GoLang/internal/middleware/rateban"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/config"
+	mwrateban "github.com/jsdraven/IT_Tools_GoLang/pkg/middleware/rateban"
 )
 
 func discardLogger() *slog.Logger {

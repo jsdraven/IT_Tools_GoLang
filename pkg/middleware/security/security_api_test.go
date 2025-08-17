@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
-	mwsecurity "github.com/jsdraven/IT_Tools_GoLang/internal/middleware/security"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/config"
+	mwsecurity "github.com/jsdraven/IT_Tools_GoLang/pkg/middleware/security"
 )
 
 func nextOK() http.Handler {

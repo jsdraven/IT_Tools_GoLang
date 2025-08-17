@@ -1,4 +1,4 @@
-package entry
+package tlsutil_test
 
 import (
 	"bytes"
@@ -18,13 +18,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
-	"github.com/jsdraven/IT_Tools_GoLang/internal/log"
+	"github.com/jsdraven/IT_Tools_GoLang/internal/entry"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/config"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/logging"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/tlsutil"
 	pkcs12modern "software.sslmate.com/src/go-pkcs12"
 )
 
 func TestResolveTLS12Suites(t *testing.T) {
-	out := resolveTLS12Suites([]string{
+	out := tlsutil.ResolveTLS12Suites([]string{
 		"ECDHE-RSA-CHACHA20-POLY1305",
 		"ecdhe-rsa-aes128-gcm-sha256", // alias lower-case
 		"INVALID",
@@ -51,7 +53,7 @@ func TestGenerateCSRAndRunCSRMode(t *testing.T) {
 	cfg.TLSCSROrg = "Acme Inc."
 
 	// run() should generate CSR and return nil without starting server
-	if err := Run(context.Background(), cfg); err != nil {
+	if err := entry.Run(context.Background(), cfg); err != nil {
 		t.Fatalf("run(CSR mode): %v", err)
 	}
 
@@ -169,9 +171,9 @@ func TestLoadTLSFromPFX_LeafOnly(t *testing.T) {
 		t.Fatalf("write pfx: %v", err)
 	}
 
-	c, err := loadTLSFromPFX(p, "pass")
+	c, err := tlsutil.LoadTLSFromPFX(p, "pass")
 	if err != nil {
-		t.Fatalf("loadTLSFromPFX: %v", err)
+		t.Fatalf("tlsutil.LoadTLSFromPFX: %v", err)
 	}
 	if c.Leaf == nil || c.Leaf.Subject.CommonName != "pfx.local" {
 		t.Fatalf("unexpected leaf: %+v", c.Leaf)
@@ -214,7 +216,7 @@ func TestLoadTLSFromPFX_BadPassword(t *testing.T) {
 	}
 
 	// wrong password should fail
-	if _, err := loadTLSFromPFX(p, "wrong"); err == nil {
+	if _, err := tlsutil.LoadTLSFromPFX(p, "wrong"); err == nil {
 		t.Fatal("expected error for wrong password, got nil")
 	}
 }
@@ -228,7 +230,7 @@ func TestLoadTLSFromPFX_CorruptFile(t *testing.T) {
 	if err := os.WriteFile(p, data, 0o600); err != nil {
 		t.Fatalf("write corrupt pfx: %v", err)
 	}
-	if _, err := loadTLSFromPFX(p, "irrelevant"); err == nil {
+	if _, err := tlsutil.LoadTLSFromPFX(p, "irrelevant"); err == nil {
 		t.Fatal("expected error for corrupt PFX, got nil")
 	}
 }
@@ -292,9 +294,9 @@ func TestLoadTLSFromPFX_WithChain(t *testing.T) {
 		t.Fatalf("write pfx: %v", err)
 	}
 
-	c, err := loadTLSFromPFX(p, "pw")
+	c, err := tlsutil.LoadTLSFromPFX(p, "pw")
 	if err != nil {
-		t.Fatalf("loadTLSFromPFX(chain): %v", err)
+		t.Fatalf("tlsutil.LoadTLSFromPFX(chain): %v", err)
 	}
 
 	if c.Leaf == nil || c.Leaf.Subject.CommonName != "chain.local" {
@@ -333,8 +335,8 @@ func TestServeOnListener_TLS_WithPEM(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		logger := log.New(cfg)
-		_ = ServeOnListener(ctx, ln, cfg, logger)
+		logger := logging.New(cfg)
+		_ = entry.ServeOnListener(ctx, ln, cfg, logger)
 		close(done)
 	}()
 
@@ -366,7 +368,7 @@ func TestServeOnListener_TLS_WithPEM(t *testing.T) {
 }
 
 func TestResolveTLS12Suites_Basic(t *testing.T) {
-	out := resolveTLS12Suites([]string{
+	out := tlsutil.ResolveTLS12Suites([]string{
 		"ECDHE-RSA-AES128-GCM-SHA256",
 		"ecdhe-rsa-chacha20-poly1305",
 		"INVALID",
@@ -443,8 +445,8 @@ func TestServeOnListener_PEMTLS_Healthz_NoRedirect(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		logger := log.New(cfg)
-		_ = ServeOnListener(ctx, ln, cfg, logger)
+		logger := logging.New(cfg)
+		_ = entry.ServeOnListener(ctx, ln, cfg, logger)
 		close(done)
 	}()
 
@@ -534,8 +536,8 @@ func TestServeOnListener_BranchPreference_PFXOverPEM(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		logger := log.New(cfg)
-		_ = ServeOnListener(ctx, ln, cfg, logger)
+		logger := logging.New(cfg)
+		_ = entry.ServeOnListener(ctx, ln, cfg, logger)
 		close(done)
 	}()
 

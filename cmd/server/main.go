@@ -9,8 +9,8 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
 	"github.com/jsdraven/IT_Tools_GoLang/internal/entry"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/config"
 )
 
 func main() {
