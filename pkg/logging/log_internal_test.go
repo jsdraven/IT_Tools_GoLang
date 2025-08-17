@@ -1,5 +1,5 @@
-// Package log: white-box tests for internal helpers and middleware behavior.
-package log
+// Package logging: white-box tests for internal helpers and middleware behavior.
+package logging
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

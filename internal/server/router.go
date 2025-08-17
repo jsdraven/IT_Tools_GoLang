@@ -16,10 +16,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
-	log "github.com/jsdraven/IT_Tools_GoLang/internal/log"
-	mwrateban "github.com/jsdraven/IT_Tools_GoLang/internal/middleware/rateban"
-	mws "github.com/jsdraven/IT_Tools_GoLang/internal/middleware/security"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/config"
+	log "github.com/jsdraven/IT_Tools_GoLang/pkg/logging"
+	mwrateban "github.com/jsdraven/IT_Tools_GoLang/pkg/middleware/rateban"
+	mws "github.com/jsdraven/IT_Tools_GoLang/pkg/middleware/security"
 )
 
 // NewRouter builds the chi router with security/cors/logging middleware.

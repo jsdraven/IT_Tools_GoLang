@@ -1,5 +1,5 @@
-// Package entry: tls_helpers contains all of the helpers for entry to properly handle TLS
-package entry
+// Package tlsutil provides helper functions for TLS configuration and CSR generation.
+package tlsutil
 
 import (
 	"crypto/rand"
@@ -15,13 +15,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/config"
 	pkcs12modern "software.sslmate.com/src/go-pkcs12"
 )
 
 // resolveTLS12Suites maps names to Go cipher constants. Unknown names are ignored.
 // If no names provided, returns nil and Go uses its secure defaults.
-func resolveTLS12Suites(names []string) []uint16 {
+func ResolveTLS12Suites(names []string) []uint16 {
 	if len(names) == 0 {
 		return nil
 	}
@@ -52,7 +52,7 @@ func resolveTLS12Suites(names []string) []uint16 {
 }
 
 // loadTLSFromPFX loads a PKCS#12 (.pfx/.p12) bundle and returns a tls.Certificate.
-func loadTLSFromPFX(path, password string) (tls.Certificate, error) {
+func LoadTLSFromPFX(path, password string) (tls.Certificate, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return tls.Certificate{}, err
@@ -78,7 +78,7 @@ func loadTLSFromPFX(path, password string) (tls.Certificate, error) {
 
 // generateSelfSigned creates an ephemeral RSA key and self-signed certificate
 // with SANs for localhost/loopback and the machine hostname (if available).
-func generateSelfSigned() (tls.Certificate, error) {
+func GenerateSelfSigned() (tls.Certificate, error) {
 	// Key
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -127,7 +127,7 @@ func generateSelfSigned() (tls.Certificate, error) {
 }
 
 // generateCSR writes a private key and CSR to TLSCSROutDir and returns nil on success.
-func generateCSR(cfg *config.Config, logger *slog.Logger) error {
+func GenerateCSR(cfg *config.Config, logger *slog.Logger) error {
 	if cfg.TLSCSROutDir == "" {
 		cfg.TLSCSROutDir = "certs"
 	}

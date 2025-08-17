@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/config"
 )
 
 // Headers returns middleware that sets strict security headers.

@@ -14,7 +14,7 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/config"
 )
 
 type rateBan struct {

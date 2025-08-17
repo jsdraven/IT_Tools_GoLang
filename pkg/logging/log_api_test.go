@@ -1,5 +1,5 @@
-// Package log_test: black-box tests for the log package API surface.
-package log_test
+// Package logging_test: black-box tests for the log package API surface.
+package logging_test
 
 import (
 	"bytes"
@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
-	"github.com/jsdraven/IT_Tools_GoLang/internal/log"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/config"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,7 +35,7 @@ func lastLogJSON(t *testing.T, buf *bytes.Buffer) map[string]any {
 func TestNew_LogLevels(t *testing.T) {
 	cfg := &config.Config{LogLevel: 0} // LevelInfo default (0)
 	var buf bytes.Buffer
-	logger := log.New(cfg, &buf)
+	logger := logging.New(cfg, &buf)
 
 	logger.Debug("debug_message")
 	logger.Info("info_message")
@@ -50,7 +50,7 @@ func TestNew_LogLevels(t *testing.T) {
 func TestMiddleware_BasicRequestLogging(t *testing.T) {
 	cfg := config.Load()
 	var buf bytes.Buffer
-	logger := log.New(cfg, &buf)
+	logger := logging.New(cfg, &buf)
 
 	final := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -59,7 +59,7 @@ func TestMiddleware_BasicRequestLogging(t *testing.T) {
 		}
 	})
 
-	h := log.Middleware(cfg, logger)(final)
+	h := logging.Middleware(cfg, logger)(final)
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/testpath", nil)
@@ -78,12 +78,12 @@ func TestMiddleware_PathSkipping(t *testing.T) {
 	cfg.LogSkipPaths = []string{"/healthz"}
 
 	var buf bytes.Buffer
-	logger := log.New(cfg, &buf)
+	logger := logging.New(cfg, &buf)
 
 	r := chi.NewRouter()
 	// Route outside middleware: simulates "skip" via config path match
 	r.Group(func(gr chi.Router) {
-		gr.Use(log.Middleware(cfg, logger))
+		gr.Use(logging.Middleware(cfg, logger))
 		gr.Get("/api/echo", func(w http.ResponseWriter, r *http.Request) {
 			if _, err := w.Write([]byte("echo")); err != nil {
 				t.Fatalf("write failed: %v", err)
@@ -118,7 +118,7 @@ func TestMiddleware_PathSkipping(t *testing.T) {
 // TestNew_NilConfig_DefaultLevel verifies that passing a nil config defaults to LevelInfo.
 func TestNew_NilConfig_DefaultLevel(t *testing.T) {
 	var buf bytes.Buffer
-	logger := log.New(nil, &buf) // nil cfg → LevelInfo branch
+	logger := logging.New(nil, &buf) // nil cfg → LevelInfo branch
 
 	logger.Debug("debug_message") // should be filtered out
 	logger.Info("info_message")
@@ -139,8 +139,8 @@ func TestNew_FileWrite_ToLogFile_WhenNoWriterProvided(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chdir(oldWD) })
 	require.NoError(t, os.Chdir(tDir))
 
-	cfg := &config.Config{LogLevel: slog.LevelInfo}
-	logger := log.New(cfg) // no writer → opens/creates "it_tools.log"
+	cfg := &config.Config{LogLevel: slog.LevelInfo, Env: "prod"}
+	logger := logging.New(cfg) // no writer → opens/creates "it_tools.log"
 
 	// Emit one line
 	logger.Info("file_ok")
@@ -186,8 +186,8 @@ func TestNew_FallbackToStderr_OnOpenFailure(t *testing.T) {
 	restore := swapDefaultToBuffer(&dflt, slog.LevelDebug)
 	t.Cleanup(restore)
 
-	cfg := &config.Config{LogLevel: slog.LevelInfo}
-	logger := log.New(cfg) // triggers os.OpenFile failure → logs error to slog.Default and falls back to stderr
+	cfg := &config.Config{LogLevel: slog.LevelInfo, Env: "prod"}
+	logger := logging.New(cfg) // triggers os.OpenFile failure → logs error to slog.Default and falls back to stderr
 	require.NotNil(t, logger)
 
 	errOut := dflt.String()

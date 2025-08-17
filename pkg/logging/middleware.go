@@ -1,5 +1,5 @@
-// Package log provides application logging and related HTTP middleware.
-package log
+// Package logging provides application logging and related HTTP middleware.
+package logging
 
 import (
 	"crypto/sha256"
@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/config"
 )
 
 // Middleware is a slog middleware using chi's WrapResponseWriter to capture status.

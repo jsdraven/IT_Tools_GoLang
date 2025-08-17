@@ -1,4 +1,4 @@
-package log
+package logging
 
 import (
 	"io"
@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/config"
 )
 
 // New initializes a new slog.Logger based on the application config.
@@ -16,23 +16,8 @@ func New(cfg *config.Config, w ...io.Writer) *slog.Logger {
 	var output io.Writer
 
 	if len(w) > 0 && w[0] != nil {
-		// output = w[0]
-	} else {
-		if cfg != nil && strings.ToLower(cfg.Env) == "prod" {
-			logFile, err := os.OpenFile("it_tools.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
-			if err != nil {
-				slog.Error("Failed to open log file, falling back to stderr", "error", err)
-				output = os.Stderr
-			} else {
-				output = logFile
-			}
-		} else {
-			// non-prod → don’t touch disk
-			output = os.Stderr
-		}
-	}
-	// Only create/use a log file in production. In dev/tests, avoid touching disk.
-	if cfg != nil && strings.EqualFold(cfg.Env, "prod") {
+		output = w[0]
+	} else if cfg != nil && strings.EqualFold(cfg.Env, "prod") {
 		logFile, err := os.OpenFile("it_tools.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 		if err != nil {
 			slog.Error("Failed to open log file, falling back to stderr", "error", err)
@@ -41,6 +26,7 @@ func New(cfg *config.Config, w ...io.Writer) *slog.Logger {
 			output = logFile
 		}
 	} else {
+		// non-prod → don’t touch disk
 		output = os.Stderr
 	}
 	// This check handles the case where a nil config is passed.

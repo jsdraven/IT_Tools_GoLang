@@ -13,9 +13,10 @@ import (
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 
-	"github.com/jsdraven/IT_Tools_GoLang/internal/config"
-	"github.com/jsdraven/IT_Tools_GoLang/internal/log"
 	"github.com/jsdraven/IT_Tools_GoLang/internal/server"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/config"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/logging"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/tlsutil"
 )
 
 // BindListener binds a TCP listener and logs failures.
@@ -31,11 +32,11 @@ func BindListener(addr string, logger *slog.Logger) (net.Listener, error) {
 // Run wires config, logger, listener, and serving loop together.
 // If TLSGenerateCSR=true, it writes a key+CSR and exits without starting the server.
 func Run(ctx context.Context, cfg *config.Config) error {
-	logger := log.New(cfg)
+	logger := logging.New(cfg)
 
 	// Optional CSR generation mode
 	if cfg.TLSGenerateCSR {
-		if err := generateCSR(cfg, logger); err != nil {
+		if err := tlsutil.GenerateCSR(cfg, logger); err != nil {
 			return err
 		}
 		logger.Info("csr_generated", "out_dir", cfg.TLSCSROutDir)
@@ -92,7 +93,7 @@ func ServeOnListener(ctx context.Context, ln net.Listener, cfg *config.Config, l
 				MinVersion: cfg.TLSMinVersion,
 			}
 			if cfg.TLSMinVersion == tls.VersionTLS12 {
-				base.CipherSuites = resolveTLS12Suites(cfg.TLS12CipherSuites)
+				base.CipherSuites = tlsutil.ResolveTLS12Suites(cfg.TLS12CipherSuites)
 			}
 			ac := m.TLSConfig()
 			// Merge base restrictions into autocert config
@@ -117,7 +118,7 @@ func ServeOnListener(ctx context.Context, ln net.Listener, cfg *config.Config, l
 					}
 				}()
 			}
-			cert, err := loadTLSFromPFX(cfg.TLSPFXFile, cfg.TLSPFXPassword)
+			cert, err := tlsutil.LoadTLSFromPFX(cfg.TLSPFXFile, cfg.TLSPFXPassword)
 			if err != nil {
 				logger.Error("pfx_load_failed", "err", err)
 			} else {
@@ -126,7 +127,7 @@ func ServeOnListener(ctx context.Context, ln net.Listener, cfg *config.Config, l
 					Certificates: []tls.Certificate{cert},
 				}
 				if cfg.TLSMinVersion == tls.VersionTLS12 {
-					tlsCfg.CipherSuites = resolveTLS12Suites(cfg.TLS12CipherSuites)
+					tlsCfg.CipherSuites = tlsutil.ResolveTLS12Suites(cfg.TLS12CipherSuites)
 				}
 				tlsLn := tls.NewListener(ln, tlsCfg)
 				if err := srv.Serve(tlsLn); err != nil && err != http.ErrServerClosed {
@@ -150,7 +151,7 @@ func ServeOnListener(ctx context.Context, ln net.Listener, cfg *config.Config, l
 				MinVersion: cfg.TLSMinVersion,
 			}
 			if cfg.TLSMinVersion == tls.VersionTLS12 {
-				srv.TLSConfig.CipherSuites = resolveTLS12Suites(cfg.TLS12CipherSuites)
+				srv.TLSConfig.CipherSuites = tlsutil.ResolveTLS12Suites(cfg.TLS12CipherSuites)
 			}
 			if err := srv.ServeTLS(ln, cfg.TLSCertFile, cfg.TLSKeyFile); err != nil && err != http.ErrServerClosed {
 				logger.Error("server_error", "err", err)
@@ -161,7 +162,7 @@ func ServeOnListener(ctx context.Context, ln net.Listener, cfg *config.Config, l
 		// 4) Self-signed TLS (default when nothing else is configured)
 		// Generates an ephemeral certificate at startup for quick, safer-by-default HTTPS.
 		{
-			cert, err := generateSelfSigned()
+			cert, err := tlsutil.GenerateSelfSigned()
 			if err != nil {
 				logger.Error("selfsigned_generate_failed", "err", err)
 				// Fallback to plain HTTP only if self-signed generation fails.
@@ -182,7 +183,7 @@ func ServeOnListener(ctx context.Context, ln net.Listener, cfg *config.Config, l
 				Certificates: []tls.Certificate{cert},
 			}
 			if cfg.TLSMinVersion == tls.VersionTLS12 {
-				tlsCfg.CipherSuites = resolveTLS12Suites(cfg.TLS12CipherSuites)
+				tlsCfg.CipherSuites = tlsutil.ResolveTLS12Suites(cfg.TLS12CipherSuites)
 			}
 			logger.Warn("using_self_signed_tls", "note", "for staging/dev; configure ACME/PFX/PEM for production")
 			tlsLn := tls.NewListener(ln, tlsCfg)
