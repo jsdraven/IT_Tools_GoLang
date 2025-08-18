@@ -19,7 +19,7 @@ import (
 	pkcs12modern "software.sslmate.com/src/go-pkcs12"
 )
 
-// resolveTLS12Suites maps names to Go cipher constants. Unknown names are ignored.
+// ResolveTLS12Suites maps names to Go cipher constants. Unknown names are ignored.
 // If no names provided, returns nil and Go uses its secure defaults.
 func ResolveTLS12Suites(names []string) []uint16 {
 	if len(names) == 0 {
@@ -51,7 +51,7 @@ func ResolveTLS12Suites(names []string) []uint16 {
 	return out
 }
 
-// loadTLSFromPFX loads a PKCS#12 (.pfx/.p12) bundle and returns a tls.Certificate.
+// LoadTLSFromPFX loads a PKCS#12 (.pfx/.p12) bundle and returns a tls.Certificate.
 func LoadTLSFromPFX(path, password string) (tls.Certificate, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -76,7 +76,7 @@ func LoadTLSFromPFX(path, password string) (tls.Certificate, error) {
 	}, nil
 }
 
-// generateSelfSigned creates an ephemeral RSA key and self-signed certificate
+// GenerateSelfSigned creates an ephemeral RSA key and self-signed certificate
 // with SANs for localhost/loopback and the machine hostname (if available).
 func GenerateSelfSigned() (tls.Certificate, error) {
 	// Key
@@ -126,7 +126,7 @@ func GenerateSelfSigned() (tls.Certificate, error) {
 	return c, nil
 }
 
-// generateCSR writes a private key and CSR to TLSCSROutDir and returns nil on success.
+// GenerateCSR writes a private key and CSR to TLSCSROutDir and returns nil on success.
 func GenerateCSR(cfg *config.Config, logger *slog.Logger) error {
 	if cfg.TLSCSROutDir == "" {
 		cfg.TLSCSROutDir = "certs"

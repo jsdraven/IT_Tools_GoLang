@@ -4,19 +4,18 @@ package server
 
 import (
 	"fmt"
-	"io"
 	"log/slog"
 	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jsdraven/IT_Tools_GoLang/pkg/config"
+	"github.com/jsdraven/IT_Tools_GoLang/pkg/download"
 	log "github.com/jsdraven/IT_Tools_GoLang/pkg/logging"
 	mwrateban "github.com/jsdraven/IT_Tools_GoLang/pkg/middleware/rateban"
 	mws "github.com/jsdraven/IT_Tools_GoLang/pkg/middleware/security"
@@ -87,7 +86,7 @@ func NewRouter(cfg *config.Config, logger *slog.Logger) http.Handler {
 		if ct == "" {
 			ct = "application/octet-stream"
 		}
-		if err := WriteSafeDownload(w, r, name, st.Size(), f, ct); err != nil {
+		if err := download.WriteSafeDownload(w, r, name, st.Size(), f, ct); err != nil {
 			_ = err // (optional) log it if you want
 		}
 	})
@@ -98,98 +97,4 @@ func NewRouter(cfg *config.Config, logger *slog.Logger) http.Handler {
 	}
 
 	return r
-}
-
-// WriteSafeDownload streams a file-like response with strict headers and Range support.
-// Requires the source to implement BOTH io.ReadSeeker and io.ReaderAt so we can build
-// a bounded SectionReader and still satisfy ServeContent's ReadSeeker requirement.
-//
-// filename: suggested name for the client (used in Content-Disposition)
-// size:     exact size of the payload in bytes (must be >= 0)
-// ctype:    content type to set; if empty, defaults to application/octet-stream
-func WriteSafeDownload(
-	w http.ResponseWriter,
-	r *http.Request,
-	filename string,
-	size int64,
-	reader interface {
-		io.ReadSeeker
-		io.ReaderAt
-	},
-	ctype string,
-) error {
-	if size < 0 {
-		http.Error(w, "unknown length", http.StatusInternalServerError)
-		return fmt.Errorf("WriteSafeDownload: negative size")
-	}
-	if strings.TrimSpace(ctype) == "" {
-		ctype = "application/octet-stream"
-	}
-
-	// Security & meta headers (nosniff is also set globally by SecurityHeaders)
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Content-Type", ctype)
-	w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
-	setDownloadDisposition(w, filename)
-
-	// Bound the readable window to [0, size) and let ServeContent handle Range/HEAD.
-	sec := io.NewSectionReader(reader, 0, size) // requires ReaderAt
-	// SectionReader implements ReadSeeker, so ServeContent will honor Range requests.
-	http.ServeContent(w, r, filename, time.Time{}, sec)
-	return nil
-}
-
-// setDownloadDisposition sets Content-Disposition with an ASCII fallback and RFC5987 filename*.
-func setDownloadDisposition(w http.ResponseWriter, name string) {
-	ascii := makeASCIIFallback(name)
-	utf8Star := "UTF-8''" + urlEncodeRFC5987(name)
-	// Keep quoting minimal and escape embedded quotes/backslashes defensively.
-	var b strings.Builder
-	b.WriteString("attachment; filename=\"")
-	for i := 0; i < len(ascii); i++ {
-		c := ascii[i]
-		if c == '"' || c == '\\' {
-			b.WriteByte('\\')
-		}
-		b.WriteByte(c)
-	}
-	b.WriteString("\"; filename*=")
-	b.WriteString(utf8Star)
-	w.Header().Set("Content-Disposition", b.String())
-}
-
-// makeASCIIFallback returns a conservative ASCII-only filename for legacy user agents.
-func makeASCIIFallback(s string) string {
-	const ok = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
-	var b strings.Builder
-	for _, r := range s {
-		if r < 128 && strings.ContainsRune(ok, r) {
-			b.WriteRune(r)
-			continue
-		}
-		b.WriteByte('_')
-	}
-	out := b.String()
-	if out == "" {
-		return "download.bin"
-	}
-	return out
-}
-
-// urlEncodeRFC5987 percent-encodes bytes appropriate for filename* UTF-8 form.
-func urlEncodeRFC5987(s string) string {
-	var b strings.Builder
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-			(c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-' {
-			b.WriteByte(c)
-		} else {
-			const hex = "0123456789ABCDEF"
-			b.WriteByte('%')
-			b.WriteByte(hex[c>>4])
-			b.WriteByte(hex[c&0x0F])
-		}
-	}
-	return b.String()
 }

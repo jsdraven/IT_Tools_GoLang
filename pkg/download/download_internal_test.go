@@ -1,5 +1,5 @@
 // internal/server/sanitize_test.go
-package server
+package download
 
 import (
 	"net/http/httptest"
@@ -164,5 +164,18 @@ func TestSetDownloadDisposition_HeaderFormat(t *testing.T) {
 				t.Fatalf("filename* not RFC5987-encoded with %%22 for quotes: %q", cd)
 			}
 		})
+	}
+}
+
+func TestURLEncodeRFC5987(t *testing.T) {
+	// RFC5987 form used in filename*
+	in := "Pokémon—βeta.txt"
+	got := urlEncodeRFC5987(in)
+	if strings.Contains(got, " ") {
+		t.Fatalf("should be percent-encoded, got %q", got)
+	}
+	// Safe ASCII should pass through
+	if urlEncodeRFC5987("abc-_.123") != "abc-_.123" {
+		t.Fatalf("safe chars should pass through")
 	}
 }

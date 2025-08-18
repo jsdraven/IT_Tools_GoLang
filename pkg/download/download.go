@@ -1,12 +1,13 @@
-// Package server
-// internal/server/download.go
-package server
+// Package download: This is a pkg to secure uploads to the server.
+// download.go
+package download
 
 import (
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -240,6 +241,63 @@ func toASCII(s string) string {
 			continue
 		}
 		// otherwise: drop this rune
+	}
+	return b.String()
+}
+
+// WriteSafeDownload streams a file-like response with strict headers and Range support.
+// Requires the source to implement BOTH io.ReadSeeker and io.ReaderAt so we can build
+// a bounded SectionReader and still satisfy ServeContent's ReadSeeker requirement.
+//
+// filename: suggested name for the client (used in Content-Disposition)
+// size:     exact size of the payload in bytes (must be >= 0)
+// ctype:    content type to set; if empty, defaults to application/octet-stream
+func WriteSafeDownload(
+	w http.ResponseWriter,
+	r *http.Request,
+	filename string,
+	size int64,
+	reader interface {
+		io.ReadSeeker
+		io.ReaderAt
+	},
+	ctype string,
+) error {
+	if size < 0 {
+		http.Error(w, "unknown length", http.StatusInternalServerError)
+		return fmt.Errorf("WriteSafeDownload: negative size")
+	}
+	if strings.TrimSpace(ctype) == "" {
+		ctype = "application/octet-stream"
+	}
+
+	// Security & meta headers (nosniff is also set globally by SecurityHeaders)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Type", ctype)
+	w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
+	setDownloadDisposition(w, filename)
+
+	// Bound the readable window to [0, size) and let ServeContent handle Range/HEAD.
+	sec := io.NewSectionReader(reader, 0, size) // requires ReaderAt
+	// SectionReader implements ReadSeeker, so ServeContent will honor Range requests.
+	http.ServeContent(w, r, filename, time.Time{}, sec)
+	return nil
+}
+
+// urlEncodeRFC5987 percent-encodes bytes appropriate for filename* UTF-8 form.
+func urlEncodeRFC5987(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+			(c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-' {
+			b.WriteByte(c)
+		} else {
+			const hex = "0123456789ABCDEF"
+			b.WriteByte('%')
+			b.WriteByte(hex[c>>4])
+			b.WriteByte(hex[c&0x0F])
+		}
 	}
 	return b.String()
 }

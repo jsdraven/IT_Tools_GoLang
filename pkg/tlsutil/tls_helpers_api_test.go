@@ -575,3 +575,50 @@ func TestServeOnListener_BranchPreference_PFXOverPEM(t *testing.T) {
 		t.Fatal("server did not shut down")
 	}
 }
+
+func TestGenerateSelfSigned(t *testing.T) {
+	cert, err := tlsutil.GenerateSelfSigned()
+	if err != nil {
+		t.Fatalf("GenerateSelfSigned: %v", err)
+	}
+	if cert.Leaf == nil {
+		t.Fatal("Leaf not parsed")
+	}
+	key, ok := cert.PrivateKey.(*rsa.PrivateKey)
+	if !ok {
+		t.Fatalf("PrivateKey type %T, want *rsa.PrivateKey", cert.PrivateKey)
+	}
+	if key.N.BitLen() != 2048 {
+		t.Fatalf("key bit length = %d, want 2048", key.N.BitLen())
+	}
+	host, _ := os.Hostname()
+	wantCN := "localhost"
+	wantDNS := []string{"localhost"}
+	if host != "" && host != "localhost" {
+		wantCN = host
+		wantDNS = append(wantDNS, host)
+	}
+	if cert.Leaf.Subject.CommonName != wantCN {
+		t.Fatalf("CN = %q, want %q", cert.Leaf.Subject.CommonName, wantCN)
+	}
+	dnsSet := map[string]bool{}
+	for _, d := range cert.Leaf.DNSNames {
+		dnsSet[d] = true
+	}
+	for _, d := range wantDNS {
+		if !dnsSet[d] {
+			t.Fatalf("missing DNS SAN %q", d)
+		}
+	}
+	wantIPs := map[string]bool{"127.0.0.1": false, "::1": false}
+	for _, ip := range cert.Leaf.IPAddresses {
+		if _, ok := wantIPs[ip.String()]; ok {
+			wantIPs[ip.String()] = true
+		}
+	}
+	for ip, seen := range wantIPs {
+		if !seen {
+			t.Fatalf("missing IP SAN %s", ip)
+		}
+	}
+}
