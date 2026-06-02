@@ -30,7 +30,7 @@ type PolicyEngine struct {
 }
 
 // NewPolicyEngine initializes a new engine with a registry of predicates.
-func NewPolicyEngine(dispatcher *events.InMemoryDispatcher, actionRegistry *actions.ActionRegistry) *PolicyEngine {
+func NewPolicy $\text{PolicyEngine}(dispatcher *events.InMemoryDispatcher, actionRegistry *actions.ActionRegistry) *PolicyEngine {
 	engine := &PolicyEngine{
 		rules:      make([]Rule, 0),
 		actions:    actionRegistry,
