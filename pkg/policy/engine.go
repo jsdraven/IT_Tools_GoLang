@@ -9,17 +9,8 @@ import (
 	"IT_Tools_GoLang_New/pkg/config"
 )
 
-// PredicateFunc is a function that evaluates an event.
-type PredicateFunc func(events.AuditEvent) bool
-
-// Rule defines a condition that, when met by an event, triggers an action.
-type Rule struct {
-	ID          string                 `json:"id"`
-	EventType   string                 `json:"event_type"` // Matches AuditEvent.Type
-	Condition   PredicateFunc          `json:"-"`           // The logic to evaluate the event
-	ActionName  string                 `json:"action_name"` // The name of the action in ActionRegistry
-	ActionParam map[string]interface{} `json:"action_params"`
-}
+// PolicyPredicateFunc is a function that evaluates a request against a policy.
+type PolicyPredicateFunc func(r *http.Request, user *auth.User) bool
 
 // PolicyEngine evaluates incoming events against a set of rules and triggers actions.
 type PolicyEngine struct {
@@ -27,15 +18,18 @@ type PolicyEngine struct {
 	actions    *actions.ActionRegistry
 	events     *events.InMemoryDispatcher
 	predicates map[string]PredicateFunc
+	// Added for Identity Middleware integration
+	policyPredicates map[string]PolicyPredicateFunc
 }
 
 // NewPolicyEngine initializes a new engine with a registry of predicates.
-func NewPolicy $\text{PolicyEngine}(dispatcher *events.InMemoryDispatcher, actionRegistry *actions.ActionRegistry) *PolicyEngine {
+func NewPolicyEngine(dispatcher *events.InMemoryDispatcher, actionRegistry *actions.ActionRegistry) *PolicyEngine {
 	engine := &PolicyEngine{
-		rules:      make([]Rule, 0),
-		actions:    actionRegistry,
-		events:     dispatcher,
-		predicates: make(map[string]PredicateFunc),
+		rules:            make([]Rule, 0),
+		actions:          actionRegistry,
+		events:           dispatcher,
+		predicates:       make(map[string]PredicateFunc),
+		policyPredicates: make(map[string]PolicyPredicateFunc),
 	}
 
 	// Subscribe the engine to the dispatcher so it hears all events.
@@ -47,6 +41,20 @@ func NewPolicy $\text{PolicyEngine}(dispatcher *events.InMemoryDispatcher, actio
 // RegisterPredicate maps a string key (from JSON) to a Go condition function.
 func (e *PolicyEngine) RegisterPredicate(name string, fn PredicateFunc) {
 	e.predicates[name] = fn
+}
+
+// RegisterPolicyPredicate maps a string key (from JSON) to a Go policy check function.
+func (e *PolicyEngine) RegisterPolicyPredicate(name string, fn PolicyPredicateFunc) {
+	e.policyPredicates[name] = fn
+}
+
+// CheckRequestPolicy allows the IdentityMiddleware to proactively enforce rules on HTTP requests.
+func (e *PolicyEngine) CheckRequestPolicy(r *http.Request, user *auth.User, predicateName string) bool {
+	fn, ok := e.policyPredicates[predicateName]
+	if !ok {
+		return true // If no policy is defined for this request, allow it by default (fail-open).
+	}
+	return fn(r, user)
 }
 
 // AddRule registers a new security rule in the engine.

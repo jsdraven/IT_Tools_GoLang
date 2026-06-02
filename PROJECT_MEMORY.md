@@ -29,12 +29,16 @@ Project Titan is a high-performance, plugin-oriented system designed with a **Ke
     *   `ResultIterator`: An abstraction to iterate over results without driver-specific leakage.
 
 ### 3. Security & Observability (SIEM/SOAR)
-*   **Status:** Event Infrastructure Ready; Response Logic Pending.
+*   **Status:** Event Infrastructure Ready; Response Logic Implemented via Tiered Orchestration.
 *   **Implemented:**
     *   Event Dispatcher: A central hub for emitting security and system events.
     *   Audit Hooks: Mechanisms to intercept authentication attempts and log them.
+    *   **Tiered Event Orchestration**: A high-performance pipeline using a Triage layer (O(1) routing) with an automated fallback to a JSON-driven Policy Engine.
+    *   **Action Registry & Plugins**: Framework for executing actions via plugins (e.g., `LoggingActionPlugin`, `SpyAction`).
+    *   **Capability-Based Security**: Implementation of `TitanContext` to sandbox plugin execution.
 *   **Pending:**
-    *   Automated Response Plugins (The "SOAR" action layer).
+    *   Automated Response Plugins (The "SOAR" action layer) expansion.
+    *   Integrate the Event Dispatcher with external notification channels (Telegram, Email).
 
 ---
 
@@ -44,9 +48,14 @@ Project Titan is a high-performance, plugin-oriented system designed with a **Ke
 - [x] Created Auth Protocol Registry and Adapter Interface.
 - [x] Developed Mock Authentication for testing.
 - [x] Initialized Data Driver/DAL Architecture.
-/x] Published Plugin Development Documentation.
+- [x] Implemented JSON-driven Policy Engine with Predicate Registry.
+- [x] Established Plugin Interface with `TitanContext` capability-based security.
+- [x] Implemented Tiered Event Orchestration (Triage $\rightarrow$ Policy Engine).
+- [x] Published Plugin Development Documentation.
 
 ---
+
+## 🗺 Roadmap & Next Steps
 
 ## 🗺 Roadmap & Next Steps
 
@@ -54,10 +63,12 @@ Project Titan is a high-performance, plugin-oriented system designed with a **Ke
 - [ ] Implement a `SQLite` or `InMemory` `DataDriver` to test the DAL.
 - [ ] Build out the first real `Auth Protocol Adapter` (e.g., LDAP/LDIF simulation).
 
-### Phase 2: SOAR Expansion
-- [ ] Create "Action Plugins" for automated response (e.g., a plugin that blocks an IP in the kernel's firewall list).
+### Phase 2: SOAR Expansion & Identity Middleware
+- [ ] Implement **Identity Middleware** to intercept requests and apply policy/auth checks.
+- [ ] Create "Action Plugins" for automated response expansion.
 - [ ] Integrate the Event Dispatcher with external notification channels (Telegram, Email).
 
-### Phase 3: Advanced Identity
+### Phase 3: Advanced Identity & Wasm Isolation
 - [ ] Implement SAML/OIDC support via external providers.
 - [ ] Build out the O365 Graph API adapter.
+- [ ] Implement **Wasm-based isolation** for the plugin system to enhance security.
