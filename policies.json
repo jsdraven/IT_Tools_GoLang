@@ -1,0 +1,22 @@
+{
+  "rules": [
+    {
+      "id": "rule-001",
+      "event_type": "Audit",
+      "condition_predicate": "always_true",
+      "action_name": "logger",
+      "action_params": {
+        "message": "JSON loaded rule triggered!"
+      }
+    },
+    {
+      "id": "rule-002",
+      "event_type": "Auth",
+      "condition_predicate": "always_true",
+      "action_name": "spy",
+      "action_params": {
+        "tag": "auth-monitor"
+      }
+    }
+  ]
+}
