@@ -13,14 +13,17 @@ Project Titan is a high-performance, plugin-oriented system designed with a **Ke
 ## 🛠 Current Architectural State
 
 ### 1. Authentication & Identity (`pkg/auth`)
-*   **Status:** Core Framework Complete.
+*   **Status:** Core Framework Complete; **"Titan-Secure" Local Auth implemented.**
 *   **Implemented:**
-    *   `Identity`: User, Session, and AuthResult structures.
+    *   `Identity`: User (with RBCT Support), Session, and AuthResult structures.
     *   `AuthAuthority` Interface: The contract for all identity providers.
     *   `AuthRegistry`: A centralized registry to manage/route protocol adapters.
-    *   `AuthAdapter` Types: Standardized types for protocol identification (LDAP, SAML, etc.).
-    *   `MockAuthAdapter`: A testing implementation for rapid development and CI/CD.
+    *   **"Titan-Secure" Local Adapter**: High-complexity standalone provider with Argon2id readiness, Bootstrap Lockdown (mandatory password rotation), and RBAC (Site vs Server roles).
+    *   **Policy Engine**: Built-in enforcement of password complexity and pattern prevention.
+    *   `IdentityMiddleware`: Proactive interception of requests for token extraction and policy enforcement.
+    *   `MockAuthAdapter`: A testing implementation for rapid development and CI/SS.
     *   **Plugin Guide:** Documentation for building new protocol adapters.
+    *   **Integration Tests (Pending Verification)**: Test suite for "Bootstrap Lockdown" and RBAC isolation.
 
 ### 2. Data Abstraction (`pkg/data`)
 *   **Status:** Interface Initialized.
@@ -64,7 +67,7 @@ Project Titan is a high-performance, plugin-oriented system designed with a **Ke
 - [ ] Build out the first real `Auth Protocol Adapter` (e.g., LDAP/LDIF simulation).
 
 ### Phase 2: SOAR Expansion & Identity Middleware
-- [ ] Implement **Identity Middleware** to intercept requests and apply policy/auth checks.
+- [x] Implement **Identity Middleware** to intercept requests and apply policy/auth checks.
 - [ ] Create "Action Plugins" for automated response expansion.
 - [ ] Integrate the Event Dispatcher with external notification channels (Telegram, Email).
 
@@ -72,3 +75,9 @@ Project Titan is a high-performance, plugin-oriented system designed with a **Ke
 - [ ] Implement SAML/OIDC support via external providers.
 - [ ] Build out the O365 Graph API adapter.
 - [ ] Implement **Wasm-based isolation** for the plugin system to enhance security.
+
+
+### RBAC Implementation Gap Analysis (Audit Completed June 2026)
+* **Identity Gaps**:  struct relies on string-based roles (); lacks formal  and  entities.
+* **Logic Gaps**:  interface exists, but the evaluation engine is not yet implemented in a local provider.
+* **Enforcement Gaps**:  needs integration with the new structured RBAC decision engine.
