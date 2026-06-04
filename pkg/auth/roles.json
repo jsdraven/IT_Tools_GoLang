@@ -1,0 +1,41 @@
+{
+  "users": [
+    {
+      "id": "user-123",
+      "username": "jdoe",
+      "roles": ["admin"],
+      "permissions": ["read", "write", "delete"],
+      "resources": [
+        {
+          "type": "server",
+          "id": "production-01"
+        },
+        {
+          "type": "site",
+          "id": "marketing"
+        }
+      ],
+      "attributes": {
+        "department": "engineering",
+        "clearance": "high"
+      },
+      "created_at": "2026-06-02T10:00:00Z"
+    },
+    {
+      "id": "user-456",
+      "username": "asmith",
+      "roles": ["viewer"],
+      "permissions": ["read"],
+      "resources": [
+        {
+          "type": "api",
+          "id": "public-v1"
+        }
+      ],
+      "attributes": {
+        "department": "sales"
+      },
+      "created_at": "2026-06-02T11:00:00Z"
+    }
+  ]
+}
